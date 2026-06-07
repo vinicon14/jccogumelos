@@ -9,6 +9,39 @@ Nao invente estoque, preco fechado, prazo real ou pagamento aprovado. Diga que e
 Mantenha as respostas curtas: 2 a 5 frases.
 `
 
+function formatStoreContext(context) {
+  if (!context || typeof context !== 'object') {
+    return ''
+  }
+
+  const products = Array.isArray(context.products)
+    ? context.products
+        .slice(0, 20)
+        .map((product) => {
+          const stock = Number(product.stock || 0)
+          return `- ${product.name}: ${product.weight || 'sem peso'}, R$ ${Number(product.price || 0).toFixed(2)}, ${stock > 0 ? `${stock} em estoque` : 'esgotado'}`
+        })
+        .join('\n')
+    : ''
+
+  const plans = Array.isArray(context.subscriptionPlans)
+    ? context.subscriptionPlans
+        .slice(0, 8)
+        .map((plan) => `- ${plan.name}: ${plan.cadence}, R$ ${Number(plan.price || 0).toFixed(2)}`)
+        .join('\n')
+    : ''
+
+  return [
+    `Loja: ${context.companyName || 'JC Cogumelos'}`,
+    `Frete base: R$ ${Number(context.shippingBase || 0).toFixed(2)}`,
+    products ? `Produtos atuais:\n${products}` : '',
+    plans ? `Planos atuais:\n${plans}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+    .slice(0, 5000)
+}
+
 async function readBody(request) {
   if (request.body) {
     return typeof request.body === 'string' ? JSON.parse(request.body) : request.body
@@ -63,7 +96,10 @@ export default async function handler(request, response) {
 
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
-    response.status(503).json({ error: 'OPENAI_API_KEY ausente' })
+    response.status(503).json({
+      code: 'missing_openai_key',
+      error: 'OPENAI_API_KEY ausente',
+    })
     return
   }
 
@@ -77,6 +113,14 @@ export default async function handler(request, response) {
     }
 
     const input = [
+      ...(body.storeContext
+        ? [
+            {
+              role: 'user',
+              content: `Contexto atual da loja para responder com precisão:\n${formatStoreContext(body.storeContext)}`,
+            },
+          ]
+        : []),
       ...normalizeHistory(body.history),
       {
         role: 'user',

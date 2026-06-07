@@ -148,13 +148,77 @@ function normalizeHistory(history: unknown) {
     .filter((message) => message.content.trim())
 }
 
+function formatStoreContext(context: unknown) {
+  if (!context || typeof context !== 'object') {
+    return ''
+  }
+
+  const storeContext = context as {
+    companyName?: unknown
+    shippingBase?: unknown
+    products?: Array<{
+      name?: unknown
+      weight?: unknown
+      price?: unknown
+      stock?: unknown
+    }>
+    subscriptionPlans?: Array<{
+      name?: unknown
+      cadence?: unknown
+      price?: unknown
+    }>
+  }
+
+  const products = Array.isArray(storeContext.products)
+    ? storeContext.products
+        .slice(0, 20)
+        .map((product) => {
+          const stock = Number(product.stock || 0)
+          return `- ${String(product.name || 'Produto')}: ${String(product.weight || 'sem peso')}, R$ ${Number(product.price || 0).toFixed(2)}, ${
+            stock > 0 ? `${stock} em estoque` : 'esgotado'
+          }`
+        })
+        .join('\n')
+    : ''
+
+  const plans = Array.isArray(storeContext.subscriptionPlans)
+    ? storeContext.subscriptionPlans
+        .slice(0, 8)
+        .map(
+          (plan) =>
+            `- ${String(plan.name || 'Plano')}: ${String(plan.cadence || 'cadencia')}, R$ ${Number(plan.price || 0).toFixed(2)}`,
+        )
+        .join('\n')
+    : ''
+
+  return [
+    `Loja: ${String(storeContext.companyName || 'JC Cogumelos')}`,
+    `Frete base: R$ ${Number(storeContext.shippingBase || 0).toFixed(2)}`,
+    products ? `Produtos atuais:\n${products}` : '',
+    plans ? `Planos atuais:\n${plans}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+    .slice(0, 5000)
+}
+
 async function generateJosaninhaReply(env: Record<string, string>, body: string) {
   const apiKey = env.OPENAI_API_KEY?.trim()
   if (!apiKey) {
-    return { status: 503, body: { error: 'OPENAI_API_KEY ausente' } }
+    return {
+      status: 503,
+      body: {
+        code: 'missing_openai_key',
+        error: 'OPENAI_API_KEY ausente',
+      },
+    }
   }
 
-  const payload = JSON.parse(body || '{}') as { message?: unknown; history?: unknown }
+  const payload = JSON.parse(body || '{}') as {
+    message?: unknown
+    history?: unknown
+    storeContext?: unknown
+  }
   const message = String(payload.message || '').trim()
 
   if (!message) {
@@ -171,6 +235,14 @@ async function generateJosaninhaReply(env: Record<string, string>, body: string)
       model: env.OPENAI_MODEL || 'gpt-5.2',
       instructions: josaninhaInstructions,
       input: [
+        ...(payload.storeContext
+          ? [
+              {
+                role: 'user',
+                content: `Contexto atual da loja para responder com precisão:\n${formatStoreContext(payload.storeContext)}`,
+              },
+            ]
+          : []),
         ...normalizeHistory(payload.history),
         {
           role: 'user',

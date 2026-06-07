@@ -1,5 +1,6 @@
 import { Bot, Mic, Send, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { useStore } from '../context/useStore'
 
 interface ChatMessage {
   role: 'assistant' | 'user'
@@ -37,48 +38,11 @@ const initialMessages: ChatMessage[] = [
   },
 ]
 
-function buildFallbackReply(message: string) {
-  const normalized = message.toLowerCase()
-  const cleanMessage = message.trim().replace(/\s+/g, ' ')
-
-  if (normalized.includes('receita') || normalized.includes('preparar') || normalized.includes('cozinhar')) {
-    return 'Para um preparo rápido: salteie shimeji com manteiga, alho, shoyu leve e finalize com cebolinha. Para risoto, o shitake premium entrega mais aroma.'
-  }
-
-  if (normalized.includes('assinatura') || normalized.includes('mensal')) {
-    return 'Temos kits semanal, quinzenal e mensal. O plano mensal é ótimo para manter variedade em casa e acumular pontos de fidelidade.'
-  }
-
-  if (normalized.includes('atacado') || normalized.includes('restaurante')) {
-    return 'Para atacado, recomendo o Kit Chef Semanal. Ele tem preço por volume e pode ser ajustado para restaurantes, mercados e chefs.'
-  }
-
-  if (normalized.includes('pedido') || normalized.includes('entrega')) {
-    return 'Você pode acompanhar seus pedidos pela área do cliente: pagamento, separação, envio e entrega.'
-  }
-
-  if (normalized.includes('whatsapp')) {
-    return 'O WhatsApp abre a conversa direta para tirar dúvidas e combinar pedidos com mais rapidez.'
-  }
-
-  if (normalized.includes('preço') || normalized.includes('valor') || normalized.includes('quanto custa')) {
-    return 'Os valores ficam no catálogo e podem ser ajustados no painel de admin. Se você quiser uma escolha equilibrada, comece por shimeji para o dia a dia ou shitake para pratos com mais presença.'
-  }
-
-  if (
-    normalized.includes('shimeji') ||
-    normalized.includes('shitake') ||
-    normalized.includes('shiitake') ||
-    normalized.includes('portobello') ||
-    normalized.includes('cogumelo')
-  ) {
-    return 'Boa escolha. Cogumelos mais delicados, como shimeji, combinam com preparos rápidos. Shitake e portobello aguentam receitas mais intensas, grelhados e molhos.'
-  }
-
-  return `Entendi sua pergunta sobre "${cleanMessage.slice(0, 90)}". De forma direta: posso te ajudar com isso e, se quiser conectar com a loja, transformo a ideia em sugestão de produto, preparo ou pedido.`
-}
-
-async function requestJosaninhaReply(message: string, history: ChatMessage[]) {
+async function requestJosaninhaReply(
+  message: string,
+  history: ChatMessage[],
+  storeContext: unknown,
+) {
   const response = await fetch('/api/josaninha', {
     method: 'POST',
     headers: {
@@ -87,15 +51,19 @@ async function requestJosaninhaReply(message: string, history: ChatMessage[]) {
     body: JSON.stringify({
       message,
       history: history.slice(-8),
+      storeContext,
     }),
   })
 
   const contentType = response.headers.get('content-type') ?? ''
-  if (!response.ok || !contentType.includes('application/json')) {
-    throw new Error('Resposta indisponível')
+  const data = contentType.includes('application/json')
+    ? ((await response.json()) as { reply?: string; error?: string; code?: string; model?: string })
+    : {}
+
+  if (!response.ok) {
+    throw new Error(data.error || 'Resposta indisponível')
   }
 
-  const data = (await response.json()) as { reply?: string }
   const reply = data.reply?.trim()
 
   if (!reply) {
@@ -119,12 +87,34 @@ function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | null 
 }
 
 export function AssistantWidget() {
+  const { products, subscriptionPlans, settings } = useStore()
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
   const [thinking, setThinking] = useState(false)
   const [listening, setListening] = useState(false)
   const speechRecognition = useMemo(() => getSpeechRecognitionConstructor(), [])
+  const storeContext = useMemo(
+    () => ({
+      companyName: settings.companyName,
+      shippingBase: settings.shippingBase,
+      products: products.map((product) => ({
+        name: product.name,
+        category: product.category,
+        price: product.price,
+        stock: product.stock,
+        weight: product.weight,
+        description: product.description,
+      })),
+      subscriptionPlans: subscriptionPlans.map((plan) => ({
+        name: plan.name,
+        cadence: plan.cadence,
+        price: plan.price,
+        description: plan.description,
+      })),
+    }),
+    [products, settings.companyName, settings.shippingBase, subscriptionPlans],
+  )
 
   async function sendMessage() {
     const text = input.trim()
@@ -140,12 +130,18 @@ export function AssistantWidget() {
     setThinking(true)
 
     try {
-      const reply = await requestJosaninhaReply(text, nextHistory)
+      const reply = await requestJosaninhaReply(text, nextHistory, storeContext)
       setMessages((current) => [...current, { role: 'assistant', text: reply }])
-    } catch {
+    } catch (error) {
       setMessages((current) => [
         ...current,
-        { role: 'assistant', text: buildFallbackReply(text) },
+        {
+          role: 'assistant',
+          text:
+            error instanceof Error && error.message.includes('OPENAI_API_KEY')
+              ? 'A Josaninha ainda não está conectada ao GPT porque falta configurar a OPENAI_API_KEY no servidor.'
+              : 'Não consegui falar com o GPT agora. Tente novamente em instantes.',
+        },
       ])
     } finally {
       setThinking(false)

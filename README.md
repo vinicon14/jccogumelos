@@ -61,8 +61,8 @@ no servidor. Configure `OPENAI_API_KEY` no ambiente de deploy e, se quiser
 trocar o modelo, ajuste `OPENAI_MODEL`. A chave da OpenAI não deve usar prefixo
 `VITE_`, porque ela nunca deve ser enviada para o navegador.
 
-Sem `OPENAI_API_KEY`, o chat continua respondendo com fallback local para não
-quebrar a experiência.
+Sem `OPENAI_API_KEY`, o chat não simula respostas automáticas: ele avisa que a
+conexão GPT precisa ser configurada no servidor.
 
 ## Scripts
 
