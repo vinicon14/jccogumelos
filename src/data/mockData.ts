@@ -3,6 +3,7 @@ import type {
   Coupon,
   Order,
   Product,
+  StoreSettings,
   SubscriptionPlan,
 } from '../types'
 
@@ -193,3 +194,35 @@ export const coupons: Coupon[] = [
 ]
 
 export const blogPosts: BlogPost[] = []
+
+export const storeSettings: StoreSettings = {
+  companyName: 'JC Cogumelos',
+  instagram: '@jc_cogumelos',
+  facebook: '',
+  whatsapp: '',
+  email: '',
+  shippingBase: 18.9,
+  pixEnabled: true,
+  creditEnabled: true,
+  debitEnabled: true,
+  josaninhaEnabled: true,
+  whatsappAutoEnabled: true,
+  assistantBehavior:
+    'Atender com tom acolhedor, gourmet e objetivo. Recomendar produtos, receitas e assinaturas.',
+  businessHours: '',
+  paymentGateway: {
+    enabled: false,
+    provider: 'Banco',
+    environment: 'sandbox',
+    apiEndpoint: '',
+    apiCode: '',
+    apiSecret: '',
+    merchantId: '',
+    pixKey: '',
+    pixReceiverName: 'JC Cogumelos',
+    pixReceiverCity: 'SAO PAULO',
+    pixExpirationMinutes: 5,
+    webhookUrl: 'https://jccogumelos.vercel.app/api/payment-webhook',
+    fallbackQrEnabled: true,
+  },
+}

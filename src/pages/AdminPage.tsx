@@ -2,14 +2,17 @@ import {
   Boxes,
   FilePlus2,
   Image as ImageIcon,
+  KeyRound,
   MessageCircle,
   Percent,
   Plus,
+  QrCode,
   Settings,
   ShoppingCart,
   Trash2,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { QRCodeSVG } from 'qrcode.react'
 import { MediaPreview } from '../components/MediaPreview'
 import { useStore } from '../context/useStore'
 import type {
@@ -17,12 +20,14 @@ import type {
   Coupon,
   Order,
   OrderStatus,
+  PaymentGatewayConfig,
   Product,
   ProductCategory,
   SubscriptionPlan,
 } from '../types'
 import { formatCurrency } from '../utils/format'
 import { inferMediaType, readMediaFile } from '../utils/media'
+import { buildPixPayload, isPixGatewayReady } from '../utils/payment'
 
 const statusLabels: Record<OrderStatus, string> = {
   aguardando_pagamento: 'Aguardando pagamento',
@@ -43,39 +48,6 @@ const categoryLabels: Record<ProductCategory, string> = {
 
 const productCategories = Object.keys(categoryLabels) as ProductCategory[]
 const orderStatuses = Object.keys(statusLabels) as OrderStatus[]
-
-interface StoreSettings {
-  companyName: string
-  instagram: string
-  facebook: string
-  whatsapp: string
-  email: string
-  shippingBase: number
-  pixEnabled: boolean
-  creditEnabled: boolean
-  debitEnabled: boolean
-  josaninhaEnabled: boolean
-  whatsappAutoEnabled: boolean
-  assistantBehavior: string
-  businessHours: string
-}
-
-const seedSettings: StoreSettings = {
-  companyName: 'JC Cogumelos',
-  instagram: '@jc_cogumelos',
-  facebook: '',
-  whatsapp: '',
-  email: '',
-  shippingBase: 18.9,
-  pixEnabled: true,
-  creditEnabled: true,
-  debitEnabled: true,
-  josaninhaEnabled: true,
-  whatsappAutoEnabled: true,
-  assistantBehavior:
-    'Atender com tom acolhedor, gourmet e objetivo. Recomendar produtos, receitas e assinaturas.',
-  businessHours: '',
-}
 
 function createProduct(): Product {
   return {
@@ -139,14 +111,15 @@ export function AdminPage() {
     orders,
     blogPosts,
     notifications,
+    settings,
     setProducts,
     setSubscriptionPlans,
     setCoupons,
     setOrders,
     setBlogPosts,
     setNotifications,
+    setSettings,
   } = useStore()
-  const [settings, setSettings] = useState<StoreSettings>(seedSettings)
   const [mediaError, setMediaError] = useState('')
 
   const monthSales = orders.reduce((total, order) => total + order.total, 0)
@@ -210,6 +183,16 @@ export function AdminPage() {
     setBlogPosts(blogPosts.filter((post) => post.id !== id))
   }
 
+  function updatePaymentGateway(patch: Partial<PaymentGatewayConfig>) {
+    setSettings((current) => ({
+      ...current,
+      paymentGateway: {
+        ...current.paymentGateway,
+        ...patch,
+      },
+    }))
+  }
+
   async function handleProductUpload(id: string, file?: File) {
     if (!file) {
       return
@@ -237,6 +220,13 @@ export function AdminPage() {
       setMediaError(error instanceof Error ? error.message : 'Upload não concluído.')
     }
   }
+
+  const adminPixPayload = buildPixPayload({
+    config: settings.paymentGateway,
+    amount: 1,
+    orderId: 'PREVIEW',
+  })
+  const pixReady = isPixGatewayReady(settings.paymentGateway)
 
   return (
     <section className="page-shell">
@@ -859,6 +849,169 @@ export function AdminPage() {
             />
             Cartão de débito ativo
           </label>
+
+          <div className="payment-integration-card">
+            <div className="admin-section-title compact">
+              <KeyRound size={18} />
+              <div>
+                <h3>API de pagamentos</h3>
+                <p>Banco, PIX, QR Code e retorno automático.</p>
+              </div>
+            </div>
+            <label className="toggle-row">
+              <input
+                type="checkbox"
+                checked={settings.paymentGateway.enabled}
+                onChange={(event) =>
+                  updatePaymentGateway({ enabled: event.target.checked })
+                }
+              />
+              Integração bancária ativa
+            </label>
+            <div className="admin-field-row compact">
+              <label className="field-label">
+                Banco/provedor
+                <input
+                  value={settings.paymentGateway.provider}
+                  onChange={(event) =>
+                    updatePaymentGateway({ provider: event.target.value })
+                  }
+                />
+              </label>
+              <label className="field-label">
+                Ambiente
+                <select
+                  value={settings.paymentGateway.environment}
+                  onChange={(event) =>
+                    updatePaymentGateway({
+                      environment: event.target.value as PaymentGatewayConfig['environment'],
+                    })
+                  }
+                >
+                  <option value="sandbox">Teste</option>
+                  <option value="production">Produção</option>
+                </select>
+              </label>
+            </div>
+            <label className="field-label">
+              Endpoint da API
+              <input
+                placeholder="https://api.banco.com.br/pix"
+                value={settings.paymentGateway.apiEndpoint}
+                onChange={(event) =>
+                  updatePaymentGateway({ apiEndpoint: event.target.value })
+                }
+              />
+            </label>
+            <div className="admin-field-row compact">
+              <label className="field-label">
+                Código da API
+                <input
+                  value={settings.paymentGateway.apiCode}
+                  onChange={(event) =>
+                    updatePaymentGateway({ apiCode: event.target.value })
+                  }
+                />
+              </label>
+              <label className="field-label">
+                Token/segredo
+                <input
+                  type="password"
+                  value={settings.paymentGateway.apiSecret}
+                  onChange={(event) =>
+                    updatePaymentGateway({ apiSecret: event.target.value })
+                  }
+                />
+              </label>
+            </div>
+            <div className="admin-field-row compact">
+              <label className="field-label">
+                Merchant ID
+                <input
+                  value={settings.paymentGateway.merchantId}
+                  onChange={(event) =>
+                    updatePaymentGateway({ merchantId: event.target.value })
+                  }
+                />
+              </label>
+              <label className="field-label">
+                Webhook
+                <input
+                  value={settings.paymentGateway.webhookUrl}
+                  onChange={(event) =>
+                    updatePaymentGateway({ webhookUrl: event.target.value })
+                  }
+                />
+              </label>
+            </div>
+            <div className="admin-field-row compact">
+              <label className="field-label">
+                Chave PIX
+                <input
+                  value={settings.paymentGateway.pixKey}
+                  onChange={(event) =>
+                    updatePaymentGateway({ pixKey: event.target.value })
+                  }
+                />
+              </label>
+              <label className="field-label">
+                Expiração PIX
+                <input
+                  min={1}
+                  type="number"
+                  value={settings.paymentGateway.pixExpirationMinutes}
+                  onChange={(event) =>
+                    updatePaymentGateway({
+                      pixExpirationMinutes: Number(event.target.value),
+                    })
+                  }
+                />
+              </label>
+            </div>
+            <div className="admin-field-row compact">
+              <label className="field-label">
+                Nome no PIX
+                <input
+                  value={settings.paymentGateway.pixReceiverName}
+                  onChange={(event) =>
+                    updatePaymentGateway({ pixReceiverName: event.target.value })
+                  }
+                />
+              </label>
+              <label className="field-label">
+                Cidade no PIX
+                <input
+                  value={settings.paymentGateway.pixReceiverCity}
+                  onChange={(event) =>
+                    updatePaymentGateway({ pixReceiverCity: event.target.value })
+                  }
+                />
+              </label>
+            </div>
+            <label className="toggle-row">
+              <input
+                type="checkbox"
+                checked={settings.paymentGateway.fallbackQrEnabled}
+                onChange={(event) =>
+                  updatePaymentGateway({ fallbackQrEnabled: event.target.checked })
+                }
+              />
+              QR Code local de contingência
+            </label>
+            <div className={`payment-preview ${pixReady ? 'ready' : ''}`}>
+              <QrCode size={18} />
+              <div>
+                <strong>{pixReady ? 'PIX pronto para gerar QR' : 'PIX sem chave'}</strong>
+                <span>
+                  {settings.paymentGateway.enabled
+                    ? `${settings.paymentGateway.provider} · ${settings.paymentGateway.environment}`
+                    : 'Integração desativada'}
+                </span>
+              </div>
+              <QRCodeSVG value={adminPixPayload} size={78} marginSize={1} />
+            </div>
+          </div>
+
           <label className="toggle-row">
             <input
               type="checkbox"

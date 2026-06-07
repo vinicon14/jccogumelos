@@ -113,6 +113,7 @@ create table public.app_settings (
   whatsapp text,
   email text,
   payment_methods text[] not null default array['pix', 'credito', 'debito'],
+  payment_gateway jsonb not null default '{"enabled": false, "provider": "Banco", "environment": "sandbox", "api_endpoint": "", "merchant_id": "", "pix_key": "", "pix_receiver_name": "JC Cogumelos", "pix_receiver_city": "SAO PAULO", "pix_expiration_minutes": 5, "webhook_url": ""}'::jsonb,
   shipping_config jsonb not null default '{}'::jsonb,
   external_apis jsonb not null default '{}'::jsonb,
   updated_at timestamptz not null default now()

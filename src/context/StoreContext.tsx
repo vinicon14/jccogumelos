@@ -4,6 +4,7 @@ import {
   coupons as seedCoupons,
   orders as seedOrders,
   products as seedProducts,
+  storeSettings as seedStoreSettings,
   subscriptionPlans as seedSubscriptionPlans,
 } from '../data/mockData'
 import type {
@@ -11,6 +12,7 @@ import type {
   Coupon,
   Order,
   Product,
+  StoreSettings,
   StoreNotification,
   SubscriptionPlan,
 } from '../types'
@@ -25,6 +27,7 @@ interface StoredState {
   orders: Order[]
   blogPosts: BlogPost[]
   notifications: StoreNotification[]
+  settings: StoreSettings
 }
 
 const defaultState: StoredState = {
@@ -34,6 +37,24 @@ const defaultState: StoredState = {
   orders: seedOrders,
   blogPosts: seedBlogPosts,
   notifications: [],
+  settings: seedStoreSettings,
+}
+
+function normalizeState(state: Partial<StoredState>): StoredState {
+  const incomingSettings = state.settings
+
+  return {
+    ...defaultState,
+    ...state,
+    settings: {
+      ...seedStoreSettings,
+      ...incomingSettings,
+      paymentGateway: {
+        ...seedStoreSettings.paymentGateway,
+        ...incomingSettings?.paymentGateway,
+      },
+    },
+  }
 }
 
 function readStoredState(): StoredState {
@@ -43,7 +64,7 @@ function readStoredState(): StoredState {
 
   try {
     const raw = window.localStorage.getItem(STORE_STORAGE_KEY)
-    return raw ? { ...defaultState, ...JSON.parse(raw) } : defaultState
+    return raw ? normalizeState(JSON.parse(raw) as Partial<StoredState>) : defaultState
   } catch {
     return defaultState
   }
@@ -81,6 +102,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setBlogPosts: (blogPosts: BlogPost[]) => updateState({ blogPosts }),
       setNotifications: (notifications: StoreNotification[]) =>
         updateState({ notifications }),
+      setSettings: (settings: StoreSettings | ((current: StoreSettings) => StoreSettings)) =>
+        updateState({
+          settings:
+            typeof settings === 'function' ? settings(state.settings) : settings,
+        }),
     }),
     [state, updateState],
   )

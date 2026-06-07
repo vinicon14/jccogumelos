@@ -10,7 +10,6 @@ export function BrandMark({ compact = false }: { compact?: boolean }) {
       <span className="brand-cap">
         <span className="brand-script">JC</span>
         <span className="brand-title">Cogumelos</span>
-        <span className="brand-subtitle">Fazendo + em</span>
       </span>
     </Link>
   )

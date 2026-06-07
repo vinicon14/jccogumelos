@@ -1,11 +1,13 @@
 import { CreditCard, QrCode, TimerReset } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { QRCodeSVG } from 'qrcode.react'
 import { MediaPreview } from '../components/MediaPreview'
 import { useAuth } from '../context/useAuth'
 import { useCart } from '../context/useCart'
 import { useStore } from '../context/useStore'
 import type { PaymentMethod } from '../types'
 import { formatCurrency } from '../utils/format'
+import { buildPixPayload, isPixGatewayReady } from '../utils/payment'
 
 const paymentOptions: Array<{ value: PaymentMethod; label: string; icon: typeof QrCode }> = [
   { value: 'pix', label: 'PIX', icon: QrCode },
@@ -25,11 +27,31 @@ const statuses = [
 export function CheckoutPage() {
   const { user } = useAuth()
   const { lines, subtotal, clearCart } = useCart()
-  const { orders, notifications, products, setOrders, setNotifications, setProducts } =
+  const { orders, notifications, products, settings, setOrders, setNotifications, setProducts } =
     useStore()
   const [method, setMethod] = useState<PaymentMethod>('pix')
   const [createdOrderId, setCreatedOrderId] = useState('')
-  const total = subtotal > 0 ? subtotal + 18.9 : 0
+  const [createdOrderTotal, setCreatedOrderTotal] = useState(0)
+  const total = subtotal > 0 ? subtotal + settings.shippingBase : 0
+  const displayTotal = createdOrderTotal || total
+  const availablePaymentOptions = useMemo(
+    () =>
+      paymentOptions.filter((option) => {
+        if (option.value === 'pix') return settings.pixEnabled
+        if (option.value === 'credito') return settings.creditEnabled
+        return settings.debitEnabled
+      }),
+    [settings.creditEnabled, settings.debitEnabled, settings.pixEnabled],
+  )
+  const selectedMethod = availablePaymentOptions.some((option) => option.value === method)
+    ? method
+    : availablePaymentOptions[0]?.value ?? 'pix'
+  const pixReady = isPixGatewayReady(settings.paymentGateway)
+  const pixPayload = buildPixPayload({
+    config: settings.paymentGateway,
+    amount: displayTotal,
+    orderId: createdOrderId || 'PREVIEW',
+  })
 
   function createOrder() {
     if (!user || lines.length === 0 || createdOrderId) {
@@ -37,13 +59,14 @@ export function CheckoutPage() {
     }
 
     const orderId = `JC-${Date.now().toString().slice(-6)}`
+    const orderTotal = total
 
     setOrders([
       {
         id: orderId,
         customerName: user.name,
         status: 'aguardando_pagamento',
-        total,
+        total: orderTotal,
         createdAt: new Date().toISOString(),
         items: lines.map((line) => line.product.name),
       },
@@ -75,6 +98,7 @@ export function CheckoutPage() {
         }
       }),
     )
+    setCreatedOrderTotal(orderTotal)
     setCreatedOrderId(orderId)
     clearCart()
   }
@@ -94,12 +118,12 @@ export function CheckoutPage() {
         <div className="payment-panel">
           <h2>Método de pagamento</h2>
           <div className="grid gap-3">
-            {paymentOptions.map((option) => {
+            {availablePaymentOptions.map((option) => {
               const Icon = option.icon
               return (
                 <button
                   key={option.value}
-                  className={`payment-option ${method === option.value ? 'active' : ''}`}
+                  className={`payment-option ${selectedMethod === option.value ? 'active' : ''}`}
                   type="button"
                   onClick={() => setMethod(option.value)}
                 >
@@ -109,13 +133,38 @@ export function CheckoutPage() {
               )
             })}
           </div>
-          <div className="mt-6 rounded-[8px] bg-[#fff7ec] p-4 text-sm leading-6 text-[#6f5a45]">
-            <strong className="block text-[#2d2018]">
-              {method === 'pix' ? 'QR Code PIX será gerado aqui.' : 'Dados do cartão entram aqui.'}
-            </strong>
-            A confirmação de pagamento aparecerá aqui assim que o pedido for
-            processado.
-          </div>
+          {selectedMethod === 'pix' ? (
+            <div className="pix-checkout-box">
+              <div className="pix-qr-frame">
+                {pixReady || settings.paymentGateway.fallbackQrEnabled ? (
+                  <QRCodeSVG value={pixPayload} size={188} marginSize={2} />
+                ) : (
+                  <QrCode size={64} />
+                )}
+              </div>
+              <div>
+                <strong>
+                  {pixReady
+                    ? 'QR Code PIX pronto para pagamento.'
+                    : 'PIX aguardando configuração do banco.'}
+                </strong>
+                <p>
+                  {createdOrderId
+                    ? `Pedido ${createdOrderId} · ${formatCurrency(displayTotal)}`
+                    : `${settings.paymentGateway.provider} · ${formatCurrency(displayTotal)}`}
+                </p>
+                <code>{pixPayload}</code>
+              </div>
+            </div>
+          ) : (
+            <div className="payment-flow-box">
+              <strong>Fluxo de cartão preparado.</strong>
+              <p>
+                A aprovação entra pelo retorno da API bancária quando o provedor
+                for ativado no painel.
+              </p>
+            </div>
+          )}
         </div>
 
         <aside className="summary-panel">
@@ -153,7 +202,7 @@ export function CheckoutPage() {
           </div>
           <div className="summary-total">
             <span>Total estimado</span>
-            <strong>{formatCurrency(total)}</strong>
+            <strong>{formatCurrency(displayTotal)}</strong>
           </div>
           <button
             className="primary-button justify-center"

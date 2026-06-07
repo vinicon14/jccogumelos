@@ -10,6 +10,7 @@ export type ProductCategory =
   | 'assinaturas'
 
 export type PaymentMethod = 'pix' | 'credito' | 'debito'
+export type PaymentEnvironment = 'sandbox' | 'production'
 
 export type OrderStatus =
   | 'aguardando_pagamento'
@@ -99,6 +100,39 @@ export interface StoreNotification {
   createdAt: string
   read: boolean
   link?: string
+}
+
+export interface PaymentGatewayConfig {
+  enabled: boolean
+  provider: string
+  environment: PaymentEnvironment
+  apiEndpoint: string
+  apiCode: string
+  apiSecret: string
+  merchantId: string
+  pixKey: string
+  pixReceiverName: string
+  pixReceiverCity: string
+  pixExpirationMinutes: number
+  webhookUrl: string
+  fallbackQrEnabled: boolean
+}
+
+export interface StoreSettings {
+  companyName: string
+  instagram: string
+  facebook: string
+  whatsapp: string
+  email: string
+  shippingBase: number
+  pixEnabled: boolean
+  creditEnabled: boolean
+  debitEnabled: boolean
+  josaninhaEnabled: boolean
+  whatsappAutoEnabled: boolean
+  assistantBehavior: string
+  businessHours: string
+  paymentGateway: PaymentGatewayConfig
 }
 
 export type UserRole = 'customer' | 'admin'
