@@ -52,10 +52,10 @@ export function CatalogPage() {
     <section className="page-shell">
       <div className="page-heading">
         <p className="eyebrow">Catálogo</p>
-        <h1>Cogumelos frescos, kits e assinaturas</h1>
+        <h1>Escolha por espécie, kit ou rotina</h1>
         <p>
-          Filtros preparados para categoria, preço, disponibilidade, lançamentos
-          e mais vendidos.
+          Use filtros simples para chegar rápido ao produto certo, sem perder a
+          leitura do catálogo.
         </p>
       </div>
 

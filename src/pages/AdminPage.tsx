@@ -7,8 +7,10 @@ import {
   Plus,
   Settings,
   ShoppingCart,
+  Trash2,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { MediaPreview } from '../components/MediaPreview'
 import { useStore } from '../context/useStore'
 import type {
   BlogPost,
@@ -20,6 +22,7 @@ import type {
   SubscriptionPlan,
 } from '../types'
 import { formatCurrency } from '../utils/format'
+import { inferMediaType, readMediaFile } from '../utils/media'
 
 const statusLabels: Record<OrderStatus, string> = {
   aguardando_pagamento: 'Aguardando pagamento',
@@ -89,6 +92,7 @@ function createProduct(): Product {
     reviews: 0,
     nutrition: '',
     image: '',
+    mediaType: 'image',
     tags: [],
   }
 }
@@ -121,6 +125,7 @@ function createBlogPost(): BlogPost {
     excerpt: '',
     content: '',
     image: '',
+    mediaType: 'image',
     published: false,
     createdAt: new Date().toISOString(),
   }
@@ -133,13 +138,16 @@ export function AdminPage() {
     coupons,
     orders,
     blogPosts,
+    notifications,
     setProducts,
     setSubscriptionPlans,
     setCoupons,
     setOrders,
     setBlogPosts,
+    setNotifications,
   } = useStore()
   const [settings, setSettings] = useState<StoreSettings>(seedSettings)
+  const [mediaError, setMediaError] = useState('')
 
   const monthSales = orders.reduce((total, order) => total + order.total, 0)
   const productByName = useMemo(() => {
@@ -152,6 +160,10 @@ export function AdminPage() {
         product.id === id ? { ...product, ...patch } : product,
       ),
     )
+  }
+
+  function deleteProduct(id: string) {
+    setProducts(products.filter((product) => product.id !== id))
   }
 
   function updateOrder(id: string, patch: Partial<Order>) {
@@ -173,9 +185,57 @@ export function AdminPage() {
   }
 
   function updatePost(id: string, patch: Partial<BlogPost>) {
+    const currentPost = blogPosts.find((post) => post.id === id)
     setBlogPosts(
       blogPosts.map((post) => (post.id === id ? { ...post, ...patch } : post)),
     )
+
+    if (patch.published && currentPost && !currentPost.published) {
+      setNotifications([
+        {
+          id: crypto.randomUUID(),
+          audience: 'customer',
+          title: 'Novo post no Blog Jozaninha',
+          message: currentPost.title,
+          createdAt: new Date().toISOString(),
+          read: false,
+          link: '/blog-jozaninha',
+        },
+        ...notifications,
+      ])
+    }
+  }
+
+  function deletePost(id: string) {
+    setBlogPosts(blogPosts.filter((post) => post.id !== id))
+  }
+
+  async function handleProductUpload(id: string, file?: File) {
+    if (!file) {
+      return
+    }
+
+    try {
+      setMediaError('')
+      const media = await readMediaFile(file)
+      updateProduct(id, { image: media.url, mediaType: media.mediaType })
+    } catch (error) {
+      setMediaError(error instanceof Error ? error.message : 'Upload não concluído.')
+    }
+  }
+
+  async function handlePostUpload(id: string, file?: File) {
+    if (!file) {
+      return
+    }
+
+    try {
+      setMediaError('')
+      const media = await readMediaFile(file)
+      updatePost(id, { image: media.url, mediaType: media.mediaType })
+    } catch (error) {
+      setMediaError(error instanceof Error ? error.message : 'Upload não concluído.')
+    }
   }
 
   return (
@@ -234,25 +294,73 @@ export function AdminPage() {
           </button>
         </div>
         <div className="admin-product-grid">
+          {mediaError && <p className="form-error">{mediaError}</p>}
           {products.map((product) => (
             <article className="admin-product-card" key={product.id}>
+              <button
+                className="icon-small admin-delete-button"
+                type="button"
+                onClick={() => deleteProduct(product.id)}
+                aria-label={`Excluir ${product.name}`}
+                title="Excluir produto"
+              >
+                <Trash2 size={17} />
+              </button>
               <div className="admin-product-photo">
                 {product.image ? (
-                  <img src={product.image} alt={product.name} />
+                  <MediaPreview
+                    src={product.image}
+                    alt={product.name}
+                    mediaType={product.mediaType}
+                    controls={product.mediaType === 'video'}
+                  />
                 ) : (
                   <ImageIcon size={28} />
                 )}
               </div>
               <div className="admin-product-fields">
                 <label className="field-label">
-                  Foto do produto
+                  Upload de foto ou vídeo
                   <input
-                    value={product.image}
-                    onChange={(event) =>
-                      updateProduct(product.id, { image: event.target.value })
-                    }
+                    type="file"
+                    accept="image/*,video/*"
+                    onChange={(event) => {
+                      handleProductUpload(product.id, event.currentTarget.files?.[0])
+                      event.currentTarget.value = ''
+                    }}
                   />
                 </label>
+                <div className="admin-field-row compact">
+                  <label className="field-label">
+                    URL da mídia
+                    <input
+                      value={product.image}
+                      onChange={(event) =>
+                        updateProduct(product.id, {
+                          image: event.target.value,
+                          mediaType: inferMediaType(
+                            event.target.value,
+                            product.mediaType ?? 'image',
+                          ),
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="field-label">
+                    Tipo
+                    <select
+                      value={product.mediaType ?? 'image'}
+                      onChange={(event) =>
+                        updateProduct(product.id, {
+                          mediaType: event.target.value as Product['mediaType'],
+                        })
+                      }
+                    >
+                      <option value="image">Imagem</option>
+                      <option value="video">Vídeo</option>
+                    </select>
+                  </label>
+                </div>
                 <label className="field-label">
                   Nome
                   <input
@@ -469,22 +577,72 @@ export function AdminPage() {
           </div>
         ) : (
           <div className="blog-admin-grid">
+            {mediaError && <p className="form-error">{mediaError}</p>}
             {blogPosts.map((post) => (
               <article className="blog-admin-card" key={post.id}>
+                <button
+                  className="icon-small admin-delete-button"
+                  type="button"
+                  onClick={() => deletePost(post.id)}
+                  aria-label={`Excluir ${post.title}`}
+                  title="Excluir post"
+                >
+                  <Trash2 size={17} />
+                </button>
                 <div className="admin-product-photo blog-photo">
                   {post.image ? (
-                    <img src={post.image} alt={post.title} />
+                    <MediaPreview
+                      src={post.image}
+                      alt={post.title}
+                      mediaType={post.mediaType}
+                      controls={post.mediaType === 'video'}
+                    />
                   ) : (
                     <ImageIcon size={28} />
                   )}
                 </div>
                 <label className="field-label">
-                  Imagem
+                  Upload de foto ou vídeo
                   <input
-                    value={post.image}
-                    onChange={(event) => updatePost(post.id, { image: event.target.value })}
+                    type="file"
+                    accept="image/*,video/*"
+                    onChange={(event) => {
+                      handlePostUpload(post.id, event.currentTarget.files?.[0])
+                      event.currentTarget.value = ''
+                    }}
                   />
                 </label>
+                <div className="admin-field-row compact">
+                  <label className="field-label">
+                    URL da mídia
+                    <input
+                      value={post.image}
+                      onChange={(event) =>
+                        updatePost(post.id, {
+                          image: event.target.value,
+                          mediaType: inferMediaType(
+                            event.target.value,
+                            post.mediaType ?? 'image',
+                          ),
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="field-label">
+                    Tipo
+                    <select
+                      value={post.mediaType ?? 'image'}
+                      onChange={(event) =>
+                        updatePost(post.id, {
+                          mediaType: event.target.value as BlogPost['mediaType'],
+                        })
+                      }
+                    >
+                      <option value="image">Imagem</option>
+                      <option value="video">Vídeo</option>
+                    </select>
+                  </label>
+                </div>
                 <label className="field-label">
                   Título
                   <input
@@ -544,7 +702,13 @@ export function AdminPage() {
                       const product = productByName.get(itemName)
                       return (
                         <span className="order-product-chip" key={itemName}>
-                          {product && <img src={product.image} alt={product.name} />}
+                          {product && (
+                            <MediaPreview
+                              src={product.image}
+                              alt={product.name}
+                              mediaType={product.mediaType}
+                            />
+                          )}
                           {itemName}
                         </span>
                       )

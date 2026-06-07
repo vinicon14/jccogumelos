@@ -1,4 +1,4 @@
-import { ArrowRight, Camera, MessageCircle, ShieldCheck } from 'lucide-react'
+import { ArrowRight, Camera, MessageCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { BrandMark } from '../components/BrandMark'
 import { contact } from '../config/contact'
@@ -13,14 +13,14 @@ export function LandingPage() {
         </Link>
       </div>
 
-      <div className="landing-hero">
-        <div className="reveal-up">
+      <div className="landing-hero landing-hero-minimal">
+        <div className="landing-copy reveal-up">
           <BrandMark />
           <p className="eyebrow mt-8">JC Cogumelos</p>
-          <h1>Cogumelos gourmet frescos, simples de pedir.</h1>
+          <h1>Cogumelos frescos, sem complicar.</h1>
           <p>
-            Produtos selecionados, planos recorrentes e a Jozaninha para ajudar
-            você a escolher melhor.
+            Uma loja limpa para escolher, comprar e acompanhar produtos gourmet
+            com orientação da Jozaninha quando você quiser.
           </p>
           <div className="landing-actions">
             <Link className="primary-button" to="/login">
@@ -38,27 +38,16 @@ export function LandingPage() {
             </a>
           </div>
         </div>
-
-        <div className="landing-photo reveal-up delay-100">
-          <img
-            src="https://images.unsplash.com/photo-1603046891726-36bfd957e0bf?auto=format&fit=crop&w=1200&q=85"
-            alt="Cogumelos frescos da JC Cogumelos"
-          />
-          <div className="hero-floating-card">
-            <ShieldCheck size={24} />
-          <div>
-              <strong>Área protegida</strong>
-              <span>Login e cadastro antes da compra</span>
-          </div>
-          </div>
-        </div>
       </div>
 
       <div className="landing-strip">
         <span>Frescos</span>
         <span>Assinaturas</span>
         <span>Atacado</span>
-        <span>WhatsApp</span>
+        <span>
+          <Camera size={16} />
+          Instagram
+        </span>
         <span>
           <MessageCircle size={16} />
           Jozaninha

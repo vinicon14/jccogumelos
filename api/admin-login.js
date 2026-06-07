@@ -1,4 +1,4 @@
-import { pbkdf2Sync, timingSafeEqual } from 'node:crypto'
+import { createHmac, pbkdf2Sync, timingSafeEqual } from 'node:crypto'
 
 async function readBody(request) {
   if (request.body) {
@@ -35,6 +35,27 @@ function verifyPassword(password, encodedHash) {
   return actual.length === expected.length && timingSafeEqual(actual, expected)
 }
 
+function getAdminSecret(email, passwordHash) {
+  return process.env.ADMIN_SESSION_SECRET || `${email}:${passwordHash}`
+}
+
+function signTokenPayload(payload, secret) {
+  return createHmac('sha256', secret).update(payload).digest('base64url')
+}
+
+function createAdminToken(email, secret) {
+  const adminExpiresAt = Date.now() + 8 * 60 * 60 * 1000
+  const payload = Buffer.from(
+    JSON.stringify({ sub: email, role: 'admin', exp: adminExpiresAt }),
+  ).toString('base64url')
+  const signature = signTokenPayload(payload, secret)
+
+  return {
+    adminToken: `${payload}.${signature}`,
+    adminExpiresAt,
+  }
+}
+
 export default async function handler(request, response) {
   if (request.method !== 'POST') {
     response.setHeader('Allow', 'POST')
@@ -62,6 +83,8 @@ export default async function handler(request, response) {
       return
     }
 
+    const session = createAdminToken(email, getAdminSecret(adminEmail, adminPasswordHash))
+
     response.status(200).json({
       user: {
         id: 'admin',
@@ -72,6 +95,7 @@ export default async function handler(request, response) {
         accountType: 'atacado',
         role: 'admin',
       },
+      ...session,
     })
   } catch {
     response.status(400).json({ error: 'Requisicao invalida' })

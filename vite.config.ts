@@ -1,4 +1,4 @@
-import { pbkdf2Sync, timingSafeEqual } from 'node:crypto'
+import { createHmac, pbkdf2Sync, timingSafeEqual } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
@@ -61,6 +61,56 @@ function verifyPassword(password: string, encodedHash: string) {
   const actual = pbkdf2Sync(password, salt, iterations, expected.length, 'sha256')
 
   return actual.length === expected.length && timingSafeEqual(actual, expected)
+}
+
+function getAdminSecret(email: string, passwordHash: string, env: Record<string, string>) {
+  return env.ADMIN_SESSION_SECRET || `${email}:${passwordHash}`
+}
+
+function signTokenPayload(payload: string, secret: string) {
+  return createHmac('sha256', secret).update(payload).digest('base64url')
+}
+
+function createAdminToken(email: string, secret: string) {
+  const adminExpiresAt = Date.now() + 8 * 60 * 60 * 1000
+  const payload = Buffer.from(
+    JSON.stringify({ sub: email, role: 'admin', exp: adminExpiresAt }),
+  ).toString('base64url')
+
+  return {
+    adminToken: `${payload}.${signTokenPayload(payload, secret)}`,
+    adminExpiresAt,
+  }
+}
+
+function verifyAdminToken(token: unknown, email: string, secret: string) {
+  const [payload, signature] = String(token || '').split('.')
+  if (!payload || !signature) {
+    return null
+  }
+
+  const expected = signTokenPayload(payload, secret)
+  const actualBuffer = Buffer.from(signature)
+  const expectedBuffer = Buffer.from(expected)
+
+  if (
+    actualBuffer.length !== expectedBuffer.length ||
+    !timingSafeEqual(actualBuffer, expectedBuffer)
+  ) {
+    return null
+  }
+
+  const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as {
+    sub?: string
+    role?: string
+    exp?: number
+  }
+
+  if (decoded.role !== 'admin' || decoded.sub !== email || !decoded.exp || decoded.exp < Date.now()) {
+    return null
+  }
+
+  return decoded
 }
 
 function extractOutputText(data: OpenAIResponsePayload) {
@@ -182,6 +232,11 @@ function localApiPlugin(env: Record<string, string>): Plugin {
             return
           }
 
+          const session = createAdminToken(
+            adminEmail,
+            getAdminSecret(adminEmail, adminPasswordHash, env),
+          )
+
           sendJson(response, 200, {
             user: {
               id: 'admin',
@@ -192,9 +247,51 @@ function localApiPlugin(env: Record<string, string>): Plugin {
               accountType: 'atacado',
               role: 'admin',
             },
+            ...session,
           })
         } catch {
           sendJson(response, 400, { error: 'Requisicao invalida' })
+        }
+      })
+
+      server.middlewares.use('/api/admin-session', async (request, response) => {
+        if (request.method !== 'POST') {
+          sendJson(response, 405, { error: 'Metodo nao permitido' })
+          return
+        }
+
+        if (!adminEmail || !adminPasswordHash) {
+          sendJson(response, 503, { error: 'Admin nao configurado' })
+          return
+        }
+
+        try {
+          const body = JSON.parse(await readBody(request)) as { token?: string }
+          const session = verifyAdminToken(
+            body.token,
+            adminEmail,
+            getAdminSecret(adminEmail, adminPasswordHash, env),
+          )
+
+          if (!session) {
+            sendJson(response, 401, { error: 'Sessao administrativa invalida' })
+            return
+          }
+
+          sendJson(response, 200, {
+            user: {
+              id: 'admin',
+              name: 'Admin',
+              email: adminEmail,
+              phone: '',
+              city: '',
+              accountType: 'atacado',
+              role: 'admin',
+            },
+            adminExpiresAt: session.exp,
+          })
+        } catch {
+          sendJson(response, 401, { error: 'Sessao administrativa invalida' })
         }
       })
 

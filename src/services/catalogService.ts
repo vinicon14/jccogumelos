@@ -33,6 +33,7 @@ export async function loadProducts(): Promise<Product[]> {
     reviews: Number(item.reviews ?? 0),
     nutrition: item.nutrition ?? '',
     image: item.image_url,
+    mediaType: item.media_type ?? 'image',
     tags: item.tags ?? [],
     bestSeller: Boolean(item.best_seller),
     isNew: Boolean(item.is_new),

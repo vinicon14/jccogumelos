@@ -36,33 +36,41 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const addItem = useCallback(
     (productId: string, quantity = 1) => {
+      const product = products.find((candidate) => candidate.id === productId)
+      if (!product || product.stock <= 0) {
+        return
+      }
+
       const current = items.find((item) => item.productId === productId)
+      const nextQuantity = Math.min((current?.quantity ?? 0) + quantity, product.stock)
       const nextItems = current
         ? items.map((item) =>
             item.productId === productId
-              ? { ...item, quantity: item.quantity + quantity }
+              ? { ...item, quantity: nextQuantity }
               : item,
           )
-        : [...items, { productId, quantity }]
+        : [...items, { productId, quantity: Math.min(quantity, product.stock) }]
 
       commitItems(nextItems)
     },
-    [commitItems, items],
+    [commitItems, items, products],
   )
 
   const updateQuantity = useCallback(
     (productId: string, quantity: number) => {
+      const product = products.find((candidate) => candidate.id === productId)
+      const maxQuantity = product?.stock ?? 0
       const nextItems = items
         .map((item) =>
           item.productId === productId
-            ? { ...item, quantity: Math.max(0, quantity) }
+            ? { ...item, quantity: Math.min(Math.max(0, quantity), maxQuantity) }
             : item,
         )
         .filter((item) => item.quantity > 0)
 
       commitItems(nextItems)
     },
-    [commitItems, items],
+    [commitItems, items, products],
   )
 
   const removeItem = useCallback(
@@ -99,7 +107,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     () => ({
       items,
       lines,
-      itemCount: items.reduce((total, item) => total + item.quantity, 0),
+      itemCount: lines.reduce((total, line) => total + line.quantity, 0),
       subtotal: lines.reduce((total, line) => total + line.subtotal, 0),
       addItem,
       updateQuantity,

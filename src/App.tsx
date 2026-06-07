@@ -7,6 +7,7 @@ import {
   useLocation,
 } from 'react-router-dom'
 import {
+  Bell,
   Camera,
   Menu,
   MessageCircle,
@@ -22,6 +23,7 @@ import { BrandMark } from './components/BrandMark'
 import { contact } from './config/contact'
 import { useAuth } from './context/useAuth'
 import { useCart } from './context/useCart'
+import { useStore } from './context/useStore'
 import { AccountPage } from './pages/AccountPage'
 import { AdminPage } from './pages/AdminPage'
 import { BlogPage } from './pages/BlogPage'
@@ -52,10 +54,20 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 }
 
 function AdminRoute({ children }: { children: ReactNode }) {
-  const { user, isAdmin } = useAuth()
+  const { user, isAdmin, isAdminChecking } = useAuth()
 
   if (!user) {
     return <Navigate to="/login" replace />
+  }
+
+  if (isAdminChecking) {
+    return (
+      <section className="page-shell">
+        <div className="empty-state compact">
+          <h2>Verificando acesso administrativo.</h2>
+        </div>
+      </section>
+    )
   }
 
   if (!isAdmin) {
@@ -67,8 +79,10 @@ function AdminRoute({ children }: { children: ReactNode }) {
 
 function App() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
   const { itemCount } = useCart()
   const { user, isAdmin, logout } = useAuth()
+  const { notifications, setNotifications } = useStore()
   const location = useLocation()
   const publicPage =
     location.pathname === '/' ||
@@ -77,13 +91,82 @@ function App() {
   const visibleNavItems = isAdmin
     ? [...navItems, { to: '/admin', label: 'Admin' }]
     : navItems
+  const notificationAudience = isAdmin ? 'admin' : 'customer'
+  const visibleNotifications = user
+    ? notifications
+        .filter((notification) => notification.audience === notificationAudience)
+        .slice(0, 6)
+    : []
+  const unreadNotifications = visibleNotifications.filter(
+    (notification) => !notification.read,
+  ).length
 
   useEffect(() => {
     document.title = 'JC Cogumelos'
   }, [])
 
+  useEffect(() => {
+    const selectors = [
+      'main section',
+      '.product-card',
+      '.feature-tile',
+      '.plan-card',
+      '.blog-card',
+      '.cart-line',
+      '.metric-card',
+      '.admin-module',
+      '.summary-panel',
+      '.filter-panel',
+      '.table-panel',
+      '.settings-panel',
+    ].join(',')
+    const nodes = Array.from(document.querySelectorAll<HTMLElement>(selectors))
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+    nodes.forEach((node, index) => {
+      node.classList.add('motion-reveal')
+      node.style.setProperty('--motion-delay', `${Math.min(index % 7, 5) * 55}ms`)
+    })
+
+    if (reducedMotion) {
+      nodes.forEach((node) => node.classList.add('is-visible'))
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-visible')
+            observer.unobserve(entry.target)
+          }
+        })
+      },
+      { rootMargin: '0px 0px -8% 0px', threshold: 0.12 },
+    )
+
+    nodes.forEach((node) => observer.observe(node))
+
+    return () => observer.disconnect()
+  }, [location.pathname])
+
+  function toggleNotifications() {
+    const nextOpen = !notificationsOpen
+    setNotificationsOpen(nextOpen)
+
+    if (nextOpen && unreadNotifications > 0) {
+      setNotifications(
+        notifications.map((notification) =>
+          notification.audience === notificationAudience
+            ? { ...notification, read: true }
+            : notification,
+        ),
+      )
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-[#f8f1e7] text-[#2d2018]">
+    <div className="min-h-screen bg-[#f7f7f4] text-[#201b17]">
       {!publicPage && (
       <header className="sticky top-0 z-40 border-b border-[#eadcc8] bg-[#fffaf2]/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
@@ -108,6 +191,48 @@ function App() {
           </nav>
 
           <div className="flex items-center gap-2">
+            {user && (
+              <div className="notification-menu">
+                <button
+                  className="relative grid h-10 w-10 place-items-center rounded-[8px] border border-[#eadcc8] bg-white text-[#3b2a1d] transition hover:border-[#c96d38]"
+                  type="button"
+                  onClick={toggleNotifications}
+                  aria-label="Abrir notificações"
+                >
+                  <Bell size={19} />
+                  {unreadNotifications > 0 && (
+                    <span className="notification-dot">{unreadNotifications}</span>
+                  )}
+                </button>
+                {notificationsOpen && (
+                  <div className="notification-panel">
+                    <strong>Notificações</strong>
+                    {visibleNotifications.length === 0 ? (
+                      <p>Nada novo por aqui.</p>
+                    ) : (
+                      visibleNotifications.map((notification) =>
+                        notification.link ? (
+                          <Link
+                            className="notification-item"
+                            key={notification.id}
+                            onClick={() => setNotificationsOpen(false)}
+                            to={notification.link}
+                          >
+                            <span>{notification.title}</span>
+                            <small>{notification.message}</small>
+                          </Link>
+                        ) : (
+                          <div className="notification-item" key={notification.id}>
+                            <span>{notification.title}</span>
+                            <small>{notification.message}</small>
+                          </div>
+                        ),
+                      )
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             {contact.whatsAppUrl ? (
               <a
                 className="hidden items-center gap-2 rounded-[8px] bg-[#28513c] px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#1f3f2f] sm:inline-flex"
@@ -199,7 +324,7 @@ function App() {
       </header>
       )}
 
-      <main>
+      <main className="page-transition">
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />

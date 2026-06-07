@@ -12,6 +12,8 @@ create type order_status as enum (
 );
 create type subscription_cadence as enum ('semanal', 'quinzenal', 'mensal');
 create type coupon_type as enum ('percent', 'fixed', 'shipping');
+create type media_type as enum ('image', 'video');
+create type notification_audience as enum ('admin', 'customer');
 
 create table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
@@ -39,6 +41,7 @@ create table public.products (
   reviews integer not null default 0,
   nutrition text,
   image_url text not null,
+  media_type media_type not null default 'image',
   tags text[] not null default '{}',
   best_seller boolean not null default false,
   is_new boolean not null default false,
@@ -130,10 +133,22 @@ create table public.blog_posts (
   excerpt text not null default '',
   content text not null default '',
   image_url text,
+  media_type media_type not null default 'image',
   published boolean not null default false,
   author_id uuid references public.profiles(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
+);
+
+create table public.notifications (
+  id uuid primary key default gen_random_uuid(),
+  audience notification_audience not null,
+  profile_id uuid references public.profiles(id) on delete cascade,
+  title text not null,
+  message text not null,
+  link text,
+  read boolean not null default false,
+  created_at timestamptz not null default now()
 );
 
 alter table public.profiles enable row level security;
@@ -146,6 +161,7 @@ alter table public.loyalty_events enable row level security;
 alter table public.app_settings enable row level security;
 alter table public.assistant_settings enable row level security;
 alter table public.blog_posts enable row level security;
+alter table public.notifications enable row level security;
 
 create policy "Public can read active products"
   on public.products for select
@@ -174,5 +190,18 @@ create policy "Admins can manage blog posts"
       select 1 from public.profiles
       where profiles.id = auth.uid()
       and profiles.role = 'admin'
+    )
+  );
+
+create policy "Users can read own notifications"
+  on public.notifications for select
+  using (
+    audience = 'customer'
+    or profile_id = auth.uid()
+    or exists (
+      select 1 from public.profiles
+      where profiles.id = auth.uid()
+      and profiles.role = 'admin'
+      and notifications.audience = 'admin'
     )
   );

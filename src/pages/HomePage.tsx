@@ -12,6 +12,7 @@ import {
 import { Link } from 'react-router-dom'
 import { ProductCard } from '../components/ProductCard'
 import { BrandMark } from '../components/BrandMark'
+import { MediaPreview } from '../components/MediaPreview'
 import { contact } from '../config/contact'
 import { useStore } from '../context/useStore'
 import { formatCurrency } from '../utils/format'
@@ -24,22 +25,22 @@ const benefits = [
   {
     icon: ChefHat,
     title: 'Fresco',
-    text: 'Cogumelos selecionados para cozinhar melhor.',
+    text: 'Seleção curta, visual claro e preparo fácil.',
   },
   {
     icon: Truck,
     title: 'Prático',
-    text: 'Carrinho, frete e pedidos em poucos passos.',
+    text: 'Compra direta, carrinho simples e frete previsível.',
   },
   {
     icon: BadgePercent,
     title: 'Varejo e atacado',
-    text: 'Planos e condições para diferentes rotinas.',
+    text: 'Produtos e planos para casa, chefs e pequenos negócios.',
   },
   {
     icon: ShieldCheck,
     title: 'Jozaninha',
-    text: 'Ajuda rápida para escolher, preparar e comprar.',
+    text: 'Orientação rápida para comparar, preparar e comprar.',
   },
 ]
 
@@ -52,17 +53,17 @@ export function HomePage({ focus }: HomePageProps) {
     <>
       <section className="hero-section">
         <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-8 lg:py-16">
-          <div className="reveal-up">
+          <div className="home-hero-copy reveal-up">
             <BrandMark />
             <p className="hero-kicker">JC Cogumelos</p>
-            <h1 className="mt-5 max-w-3xl text-5xl font-black leading-[0.98] text-[#2d2018] sm:text-6xl lg:text-7xl">
-              Cogumelos frescos para cozinhar melhor.
+            <h1 className="home-hero-title mt-5 max-w-3xl text-5xl font-black leading-[0.98] text-[#201b17] sm:text-6xl lg:text-7xl">
+              Cogumelos frescos para uma cozinha mais simples.
             </h1>
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-[#6f5a45]">
-              Um catálogo enxuto, pedidos simples e orientação sob medida
-              quando você quiser escolher com mais segurança.
+            <p className="home-hero-text mt-6 max-w-2xl text-lg leading-8 text-[#62584e]">
+              Escolha shimeji, shiitake e kits da semana em uma experiência
+              limpa, com ajuda sob medida quando precisar decidir melhor.
             </p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <div className="home-hero-actions mt-8 flex flex-col gap-3 sm:flex-row">
               <Link className="primary-button" to="/catalogo">
                 Comprar cogumelos
                 <ArrowRight size={18} />
@@ -118,7 +119,7 @@ export function HomePage({ focus }: HomePageProps) {
       <section className="content-section">
         <div className="section-heading">
           <p>Produtos em destaque</p>
-          <h2>Escolhas da semana</h2>
+          <h2>Escolhas para começar bem</h2>
           <Link to="/catalogo">Ver catálogo completo</Link>
         </div>
         <div className="product-grid">
@@ -135,9 +136,10 @@ export function HomePage({ focus }: HomePageProps) {
         <div className="mx-auto grid max-w-7xl gap-8 px-4 sm:px-6 lg:grid-cols-[0.8fr_1.2fr] lg:px-8">
           <div>
             <p className="eyebrow">Assinaturas</p>
-            <h2 className="section-title">Cogumelos frescos na sua rotina.</h2>
+            <h2 className="section-title">Uma rotina mais leve.</h2>
             <p className="mt-4 text-base leading-7 text-[#6f5a45]">
-              Planos simples para receber com frequência e variar as receitas.
+              Planos simples para receber variedade sem precisar refazer a
+              escolha toda semana.
             </p>
           </div>
           <div className="grid gap-4 md:grid-cols-3">
@@ -164,7 +166,13 @@ export function HomePage({ focus }: HomePageProps) {
             <div className="blog-grid">
               {publishedPosts.slice(0, 3).map((post) => (
                 <article className="blog-card" key={post.id}>
-                  {post.image && <img src={post.image} alt={post.title} />}
+                  {post.image && (
+                    <MediaPreview
+                      src={post.image}
+                      alt={post.title}
+                      mediaType={post.mediaType}
+                    />
+                  )}
                   <div>
                     <CheckCircle2 size={20} />
                     <h3>{post.title}</h3>

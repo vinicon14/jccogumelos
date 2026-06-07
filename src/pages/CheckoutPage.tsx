@@ -1,6 +1,9 @@
 import { CreditCard, QrCode, TimerReset } from 'lucide-react'
 import { useState } from 'react'
+import { MediaPreview } from '../components/MediaPreview'
+import { useAuth } from '../context/useAuth'
 import { useCart } from '../context/useCart'
+import { useStore } from '../context/useStore'
 import type { PaymentMethod } from '../types'
 import { formatCurrency } from '../utils/format'
 
@@ -20,9 +23,61 @@ const statuses = [
 ]
 
 export function CheckoutPage() {
-  const { lines, subtotal } = useCart()
+  const { user } = useAuth()
+  const { lines, subtotal, clearCart } = useCart()
+  const { orders, notifications, products, setOrders, setNotifications, setProducts } =
+    useStore()
   const [method, setMethod] = useState<PaymentMethod>('pix')
+  const [createdOrderId, setCreatedOrderId] = useState('')
   const total = subtotal > 0 ? subtotal + 18.9 : 0
+
+  function createOrder() {
+    if (!user || lines.length === 0 || createdOrderId) {
+      return
+    }
+
+    const orderId = `JC-${Date.now().toString().slice(-6)}`
+
+    setOrders([
+      {
+        id: orderId,
+        customerName: user.name,
+        status: 'aguardando_pagamento',
+        total,
+        createdAt: new Date().toISOString(),
+        items: lines.map((line) => line.product.name),
+      },
+      ...orders,
+    ])
+    setNotifications([
+      {
+        id: crypto.randomUUID(),
+        audience: 'admin',
+        title: 'Novo pedido recebido',
+        message: `${user.name} fez o pedido ${orderId}.`,
+        createdAt: new Date().toISOString(),
+        read: false,
+        link: '/admin',
+      },
+      ...notifications,
+    ])
+    setProducts(
+      products.map((product) => {
+        const line = lines.find((item) => item.product.id === product.id)
+
+        if (!line) {
+          return product
+        }
+
+        return {
+          ...product,
+          stock: Math.max(0, product.stock - line.quantity),
+        }
+      }),
+    )
+    setCreatedOrderId(orderId)
+    clearCart()
+  }
 
   return (
     <section className="page-shell">
@@ -69,7 +124,11 @@ export function CheckoutPage() {
             <div className="checkout-items">
               {lines.map((line) => (
                 <article className="checkout-item" key={line.product.id}>
-                  <img src={line.product.image} alt={line.product.name} />
+                  <MediaPreview
+                    src={line.product.image}
+                    alt={line.product.name}
+                    mediaType={line.product.mediaType}
+                  />
                   <div>
                     <strong>{line.product.name}</strong>
                     <span>
@@ -96,6 +155,14 @@ export function CheckoutPage() {
             <span>Total estimado</span>
             <strong>{formatCurrency(total)}</strong>
           </div>
+          <button
+            className="primary-button justify-center"
+            type="button"
+            onClick={createOrder}
+            disabled={lines.length === 0 || Boolean(createdOrderId)}
+          >
+            {createdOrderId ? `Pedido ${createdOrderId} criado` : 'Confirmar pedido'}
+          </button>
         </aside>
       </div>
     </section>

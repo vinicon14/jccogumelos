@@ -1,4 +1,5 @@
 import { BadgeCheck, Gift, History, Mail, MapPin, Phone, UserRound } from 'lucide-react'
+import { MediaPreview } from '../components/MediaPreview'
 import { useAuth } from '../context/useAuth'
 import { useStore } from '../context/useStore'
 import { formatCurrency, formatDate } from '../utils/format'
@@ -102,7 +103,13 @@ export function AccountPage() {
                         const product = productByName.get(itemName)
                         return (
                           <span className="order-product-chip" key={itemName}>
-                            {product && <img src={product.image} alt={product.name} />}
+                            {product && (
+                              <MediaPreview
+                                src={product.image}
+                                alt={product.name}
+                                mediaType={product.mediaType}
+                              />
+                            )}
                             {itemName}
                           </span>
                         )

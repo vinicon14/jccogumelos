@@ -6,7 +6,14 @@ import {
   products as seedProducts,
   subscriptionPlans as seedSubscriptionPlans,
 } from '../data/mockData'
-import type { BlogPost, Coupon, Order, Product, SubscriptionPlan } from '../types'
+import type {
+  BlogPost,
+  Coupon,
+  Order,
+  Product,
+  StoreNotification,
+  SubscriptionPlan,
+} from '../types'
 import { StoreContext } from './storeContextValue'
 
 const STORE_STORAGE_KEY = 'jc-cogumelos-store-v1'
@@ -17,6 +24,7 @@ interface StoredState {
   coupons: Coupon[]
   orders: Order[]
   blogPosts: BlogPost[]
+  notifications: StoreNotification[]
 }
 
 const defaultState: StoredState = {
@@ -25,6 +33,7 @@ const defaultState: StoredState = {
   coupons: seedCoupons,
   orders: seedOrders,
   blogPosts: seedBlogPosts,
+  notifications: [],
 }
 
 function readStoredState(): StoredState {
@@ -42,7 +51,11 @@ function readStoredState(): StoredState {
 
 function persistState(state: StoredState) {
   if (typeof window !== 'undefined') {
-    window.localStorage.setItem(STORE_STORAGE_KEY, JSON.stringify(state))
+    try {
+      window.localStorage.setItem(STORE_STORAGE_KEY, JSON.stringify(state))
+    } catch (error) {
+      console.warn('Não foi possível salvar todos os dados locais.', error)
+    }
   }
 }
 
@@ -66,6 +79,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setCoupons: (coupons: Coupon[]) => updateState({ coupons }),
       setOrders: (orders: Order[]) => updateState({ orders }),
       setBlogPosts: (blogPosts: BlogPost[]) => updateState({ blogPosts }),
+      setNotifications: (notifications: StoreNotification[]) =>
+        updateState({ notifications }),
     }),
     [state, updateState],
   )

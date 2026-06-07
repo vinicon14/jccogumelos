@@ -1,4 +1,5 @@
 import { Plus, Star } from 'lucide-react'
+import { MediaPreview } from './MediaPreview'
 import { useCart } from '../context/useCart'
 import { categoryLabels } from '../data/mockData'
 import type { Product } from '../types'
@@ -6,29 +7,33 @@ import { formatCurrency } from '../utils/format'
 
 export function ProductCard({ product }: { product: Product }) {
   const { addItem } = useCart()
+  const soldOut = product.stock <= 0
 
   return (
-    <article className="product-card">
-      <div className="relative aspect-[4/3] overflow-hidden bg-[#eadcc8]">
-        <img
-          className="h-full w-full object-cover transition duration-500 hover:scale-105"
+    <article className={`product-card ${soldOut ? 'product-card-disabled' : ''}`}>
+      <div className="product-media relative aspect-[4/3] overflow-hidden bg-[#e5e2d9]">
+        <MediaPreview
+          autoPlay={product.mediaType === 'video'}
+          className="h-full w-full object-cover transition duration-500"
           src={product.image}
           alt={product.name}
+          mediaType={product.mediaType}
         />
         <div className="absolute left-3 top-3 flex flex-wrap gap-2">
+          {soldOut && <span className="badge badge-muted">Esgotado</span>}
           {product.bestSeller && <span className="badge">Mais vendido</span>}
           {product.isNew && <span className="badge badge-green">Novo</span>}
         </div>
       </div>
       <div className="grid flex-1 gap-4 p-4">
-        <div>
-          <p className="text-xs font-black uppercase tracking-wider text-[#9a5a33]">
+        <div className="product-copy">
+          <p className="text-xs font-black uppercase tracking-wider text-[#8c5d3b]">
             {categoryLabels[product.category]} · {product.weight}
           </p>
-          <h3 className="mt-1 text-xl font-black leading-tight text-[#2d2018]">
+          <h3 className="mt-1 text-xl font-black leading-tight text-[#201b17]">
             {product.name}
           </h3>
-          <p className="mt-2 line-clamp-3 text-sm leading-6 text-[#6f5a45]">
+          <p className="mt-2 line-clamp-3 text-sm leading-6 text-[#62584e]">
             {product.description}
           </p>
         </div>
@@ -53,6 +58,9 @@ export function ProductCard({ product }: { product: Product }) {
             <strong className="text-2xl text-[#2d2018]">
               {formatCurrency(product.price)}
             </strong>
+            <p className={`text-xs font-bold ${soldOut ? 'text-[#9d2d1b]' : 'text-[#28513c]'}`}>
+              {soldOut ? 'Produto indisponível' : `${product.stock} em estoque`}
+            </p>
             {product.wholesalePrice && (
               <p className="text-xs font-bold text-[#28513c]">
                 Atacado {formatCurrency(product.wholesalePrice)}
@@ -63,8 +71,9 @@ export function ProductCard({ product }: { product: Product }) {
             className="icon-action"
             type="button"
             onClick={() => addItem(product.id)}
+            disabled={soldOut}
             aria-label={`Adicionar ${product.name} ao carrinho`}
-            title="Adicionar ao carrinho"
+            title={soldOut ? 'Produto esgotado' : 'Adicionar ao carrinho'}
           >
             <Plus size={20} />
           </button>

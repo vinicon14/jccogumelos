@@ -1,4 +1,6 @@
 export type AccountType = 'varejo' | 'atacado'
+export type MediaType = 'image' | 'video'
+export type NotificationAudience = 'admin' | 'customer'
 
 export type ProductCategory =
   | 'frescos'
@@ -31,6 +33,7 @@ export interface Product {
   reviews: number
   nutrition: string
   image: string
+  mediaType?: MediaType
   tags: string[]
   bestSeller?: boolean
   isNew?: boolean
@@ -83,8 +86,19 @@ export interface BlogPost {
   excerpt: string
   content: string
   image: string
+  mediaType?: MediaType
   published: boolean
   createdAt: string
+}
+
+export interface StoreNotification {
+  id: string
+  audience: NotificationAudience
+  title: string
+  message: string
+  createdAt: string
+  read: boolean
+  link?: string
 }
 
 export type UserRole = 'customer' | 'admin'
@@ -97,4 +111,6 @@ export interface SessionUser {
   city: string
   accountType: AccountType
   role: UserRole
+  adminToken?: string
+  adminExpiresAt?: number
 }

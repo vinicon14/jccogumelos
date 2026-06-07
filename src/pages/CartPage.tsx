@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Minus, Plus, Trash2, Truck } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { MediaPreview } from '../components/MediaPreview'
 import { useCart } from '../context/useCart'
 import { useStore } from '../context/useStore'
 import { formatCurrency } from '../utils/format'
@@ -61,7 +62,11 @@ export function CartPage() {
           <div className="cart-lines">
             {lines.map((line) => (
               <article className="cart-line" key={line.product.id}>
-                <img src={line.product.image} alt={line.product.name} />
+                <MediaPreview
+                  src={line.product.image}
+                  alt={line.product.name}
+                  mediaType={line.product.mediaType}
+                />
                 <div className="min-w-0 flex-1">
                   <h2>{line.product.name}</h2>
                   <p>{line.product.weight}</p>
