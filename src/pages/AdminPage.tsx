@@ -12,7 +12,6 @@ import {
   Trash2,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { QRCodeSVG } from 'qrcode.react'
 import { MediaPreview } from '../components/MediaPreview'
 import { useStore } from '../context/useStore'
 import type {
@@ -27,7 +26,6 @@ import type {
 } from '../types'
 import { formatCurrency } from '../utils/format'
 import { inferMediaType, readMediaFile } from '../utils/media'
-import { buildPixPayload, isPixGatewayReady } from '../utils/payment'
 
 const statusLabels: Record<OrderStatus, string> = {
   aguardando_pagamento: 'Aguardando pagamento',
@@ -221,12 +219,9 @@ export function AdminPage() {
     }
   }
 
-  const adminPixPayload = buildPixPayload({
-    config: settings.paymentGateway,
-    amount: 1,
-    orderId: 'PREVIEW',
-  })
-  const pixReady = isPixGatewayReady(settings.paymentGateway)
+  const mercadoPagoReady =
+    settings.paymentGateway.enabled &&
+    settings.paymentGateway.provider.toLowerCase().includes('mercado')
 
   return (
     <section className="page-shell">
@@ -854,8 +849,8 @@ export function AdminPage() {
             <div className="admin-section-title compact">
               <KeyRound size={18} />
               <div>
-                <h3>API de pagamentos</h3>
-                <p>Banco, PIX, QR Code e retorno automático.</p>
+                <h3>Mercado Pago</h3>
+                <p>Pix, QR Code, status e webhook em rota segura.</p>
               </div>
             </div>
             <label className="toggle-row">
@@ -866,11 +861,11 @@ export function AdminPage() {
                   updatePaymentGateway({ enabled: event.target.checked })
                 }
               />
-              Integração bancária ativa
+              Mercado Pago ativo
             </label>
             <div className="admin-field-row compact">
               <label className="field-label">
-                Banco/provedor
+                Provedor
                 <input
                   value={settings.paymentGateway.provider}
                   onChange={(event) =>
@@ -896,7 +891,7 @@ export function AdminPage() {
             <label className="field-label">
               Endpoint da API
               <input
-                placeholder="https://api.banco.com.br/pix"
+                placeholder="https://api.mercadopago.com/v1/payments"
                 value={settings.paymentGateway.apiEndpoint}
                 onChange={(event) =>
                   updatePaymentGateway({ apiEndpoint: event.target.value })
@@ -905,8 +900,9 @@ export function AdminPage() {
             </label>
             <div className="admin-field-row compact">
               <label className="field-label">
-                Código da API
+                Código público
                 <input
+                  placeholder="Public Key ou referência da integração"
                   value={settings.paymentGateway.apiCode}
                   onChange={(event) =>
                     updatePaymentGateway({ apiCode: event.target.value })
@@ -914,19 +910,21 @@ export function AdminPage() {
                 />
               </label>
               <label className="field-label">
-                Token/segredo
+                Access Token
                 <input
                   type="password"
-                  value={settings.paymentGateway.apiSecret}
-                  onChange={(event) =>
-                    updatePaymentGateway({ apiSecret: event.target.value })
-                  }
+                  value=""
+                  placeholder="Protegido em MERCADO_PAGO_ACCESS_TOKEN"
+                  readOnly
                 />
+                <span className="field-hint">
+                  Salve o token real nas variáveis privadas da Vercel.
+                </span>
               </label>
             </div>
             <div className="admin-field-row compact">
               <label className="field-label">
-                Merchant ID
+                ID da conta/aplicação
                 <input
                   value={settings.paymentGateway.merchantId}
                   onChange={(event) =>
@@ -946,8 +944,9 @@ export function AdminPage() {
             </div>
             <div className="admin-field-row compact">
               <label className="field-label">
-                Chave PIX
+                Chave Pix registrada
                 <input
+                  placeholder="Opcional: a chave principal fica na conta Mercado Pago"
                   value={settings.paymentGateway.pixKey}
                   onChange={(event) =>
                     updatePaymentGateway({ pixKey: event.target.value })
@@ -998,17 +997,21 @@ export function AdminPage() {
               />
               QR Code local de contingência
             </label>
-            <div className={`payment-preview ${pixReady ? 'ready' : ''}`}>
+            <div className={`payment-preview ${mercadoPagoReady ? 'ready' : ''}`}>
               <QrCode size={18} />
               <div>
-                <strong>{pixReady ? 'PIX pronto para gerar QR' : 'PIX sem chave'}</strong>
+                <strong>
+                  {mercadoPagoReady
+                    ? 'Fluxo Mercado Pago configurado'
+                    : 'Mercado Pago aguardando ativação'}
+                </strong>
                 <span>
                   {settings.paymentGateway.enabled
                     ? `${settings.paymentGateway.provider} · ${settings.paymentGateway.environment}`
                     : 'Integração desativada'}
                 </span>
               </div>
-              <QRCodeSVG value={adminPixPayload} size={78} marginSize={1} />
+              <code>/api/mercado-pago-pix</code>
             </div>
           </div>
 

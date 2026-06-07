@@ -1,4 +1,4 @@
-import { createHmac, pbkdf2Sync, timingSafeEqual } from 'node:crypto'
+import { createHmac, pbkdf2Sync, randomUUID, timingSafeEqual } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
@@ -15,6 +15,76 @@ interface OpenAIResponsePayload {
   error?: {
     message?: string
   }
+}
+
+interface MercadoPagoPaymentPayload {
+  amount?: unknown
+  orderId?: unknown
+  description?: unknown
+  expirationMinutes?: unknown
+  idempotencyKey?: unknown
+  payerEmail?: unknown
+  customer?: {
+    name?: unknown
+    email?: unknown
+  }
+  items?: Array<{
+    id?: unknown
+    name?: unknown
+    quantity?: unknown
+    unitPrice?: unknown
+    price?: unknown
+  }>
+}
+
+interface MercadoPagoResponsePayload {
+  id?: unknown
+  status?: unknown
+  status_detail?: unknown
+  external_reference?: unknown
+  transaction_amount?: unknown
+  total_paid_amount?: unknown
+  date_approved?: unknown
+  message?: string
+  error?: string
+  cause?: unknown
+  point_of_interaction?: {
+    transaction_data?: {
+      qr_code?: string
+      qr_code_base64?: string
+      ticket_url?: string
+    }
+  }
+  transactions?: {
+    payments?: Array<{
+      id?: unknown
+      status?: unknown
+      status_detail?: unknown
+      payment_method?: {
+        qr_code?: string
+        qrCode?: string
+        qr_code_text?: string
+        qr_code_base64?: string
+        qrCodeBase64?: string
+        ticket_url?: string
+        ticketUrl?: string
+      }
+    }>
+  }
+  transaction?: {
+    payments?: Array<{
+      id?: unknown
+      status?: unknown
+      status_detail?: unknown
+      payment_method?: Record<string, unknown>
+    }>
+  }
+  payments?: Array<{
+    id?: unknown
+    status?: unknown
+    status_detail?: unknown
+    payment_method?: Record<string, unknown>
+  }>
 }
 
 const josaninhaInstructions = `
@@ -40,6 +110,329 @@ function sendJson(response: ServerResponse, status: number, body: unknown) {
   response.statusCode = status
   response.setHeader('Content-Type', 'application/json')
   response.end(JSON.stringify(body))
+}
+
+function getHeader(request: IncomingMessage, name: string) {
+  const value = request.headers[name.toLowerCase()]
+  return Array.isArray(value) ? value[0] : value
+}
+
+function getMercadoPagoAccessToken(env: Record<string, string>) {
+  return (
+    env.MERCADO_PAGO_ACCESS_TOKEN ||
+    env.MP_ACCESS_TOKEN ||
+    env.BANK_PAYMENT_API_SECRET ||
+    ''
+  ).trim()
+}
+
+function getMercadoPagoWebhookSecret(env: Record<string, string>) {
+  return (env.MERCADO_PAGO_WEBHOOK_SECRET || env.BANK_PAYMENT_WEBHOOK_SECRET || '').trim()
+}
+
+function getMercadoPagoQueryParam(request: IncomingMessage, name: string) {
+  const url = new URL(request.url || '/', 'http://localhost')
+  return url.searchParams.get(name) || ''
+}
+
+function getMercadoPagoNotificationUrl(
+  env: Record<string, string>,
+  request: IncomingMessage,
+) {
+  if (env.MERCADO_PAGO_WEBHOOK_URL) {
+    return env.MERCADO_PAGO_WEBHOOK_URL
+  }
+
+  const host = getHeader(request, 'x-forwarded-host') || getHeader(request, 'host')
+  const protocol = getHeader(request, 'x-forwarded-proto') || 'http'
+  return host ? `${protocol}://${host}/api/mercado-pago-webhook` : undefined
+}
+
+function sanitizeMercadoPagoAmount(amount: unknown) {
+  const value = Number(amount)
+  return Number.isFinite(value) && value > 0 ? Number(value.toFixed(2)) : 0
+}
+
+function createMercadoPagoPaymentPayload(
+  env: Record<string, string>,
+  body: MercadoPagoPaymentPayload,
+  request: IncomingMessage,
+) {
+  const amount = sanitizeMercadoPagoAmount(body.amount)
+  const minutes = Math.max(Number(body.expirationMinutes || 30), 30)
+  const expiresAt = new Date(Date.now() + minutes * 60 * 1000).toISOString()
+  const orderId = String(body.orderId || `JC-${Date.now()}`)
+  const customer = body.customer || {}
+  const payerEmail = String(customer.email || body.payerEmail || '').trim()
+
+  return {
+    transaction_amount: amount,
+    description: String(body.description || `Pedido ${orderId} - JC Cogumelos`).slice(0, 255),
+    payment_method_id: 'pix',
+    external_reference: orderId,
+    notification_url: getMercadoPagoNotificationUrl(env, request),
+    date_of_expiration: expiresAt,
+    payer: {
+      email: payerEmail,
+      first_name: String(customer.name || 'Cliente').split(' ')[0],
+    },
+    additional_info: {
+      items: Array.isArray(body.items)
+        ? body.items.slice(0, 30).map((item) => ({
+            id: String(item.id || item.name || randomUUID()).slice(0, 64),
+            title: String(item.name || 'Produto JC Cogumelos').slice(0, 128),
+            quantity: Number(item.quantity || 1),
+            unit_price: sanitizeMercadoPagoAmount(item.unitPrice || item.price || 0),
+          }))
+        : [],
+    },
+  }
+}
+
+function createMercadoPagoOrderPayload(
+  env: Record<string, string>,
+  body: MercadoPagoPaymentPayload,
+  request: IncomingMessage,
+) {
+  const amount = sanitizeMercadoPagoAmount(body.amount)
+  const minutes = Math.max(Number(body.expirationMinutes || 30), 30)
+  const orderId = String(body.orderId || `JC-${Date.now()}`)
+  const customer = body.customer || {}
+
+  return {
+    type: 'online',
+    total_amount: amount.toFixed(2),
+    external_reference: orderId,
+    processing_mode: 'automatic',
+    notification_url: getMercadoPagoNotificationUrl(env, request),
+    transactions: {
+      payments: [
+        {
+          amount: amount.toFixed(2),
+          payment_method: {
+            id: 'pix',
+            type: 'bank_transfer',
+          },
+          expiration_time: `PT${minutes}M`,
+        },
+      ],
+    },
+    payer: {
+      email: String(customer.email || body.payerEmail || '').trim(),
+    },
+  }
+}
+
+function parseMercadoPagoPayment(data: MercadoPagoResponsePayload, mode: string) {
+  const orderPayment =
+    data.transactions?.payments?.[0] ||
+    data.transaction?.payments?.[0] ||
+    data.payments?.[0] ||
+    {}
+  const paymentMethod =
+    orderPayment.payment_method ||
+    data.point_of_interaction?.transaction_data ||
+    {}
+
+  const qrCode =
+    ('qr_code' in paymentMethod ? paymentMethod.qr_code : '') ||
+    ('qrCode' in paymentMethod ? paymentMethod.qrCode : '') ||
+    ('qr_code_text' in paymentMethod ? paymentMethod.qr_code_text : '') ||
+    data.point_of_interaction?.transaction_data?.qr_code ||
+    ''
+  const qrCodeBase64 =
+    ('qr_code_base64' in paymentMethod ? paymentMethod.qr_code_base64 : '') ||
+    ('qrCodeBase64' in paymentMethod ? paymentMethod.qrCodeBase64 : '') ||
+    data.point_of_interaction?.transaction_data?.qr_code_base64 ||
+    ''
+  const ticketUrl =
+    ('ticket_url' in paymentMethod ? paymentMethod.ticket_url : '') ||
+    ('ticketUrl' in paymentMethod ? paymentMethod.ticketUrl : '') ||
+    data.point_of_interaction?.transaction_data?.ticket_url ||
+    ''
+
+  return {
+    provider: 'mercado_pago',
+    mode,
+    paymentId: String(orderPayment.id || data.id || ''),
+    orderId: String(data.id || ''),
+    status: String(orderPayment.status || data.status || 'pending'),
+    statusDetail: String(orderPayment.status_detail || data.status_detail || ''),
+    externalReference: String(data.external_reference || ''),
+    qrCode: String(qrCode || ''),
+    qrCodeBase64: String(qrCodeBase64 || ''),
+    ticketUrl: String(ticketUrl || ''),
+    rawStatus: data.status || orderPayment.status || null,
+  }
+}
+
+async function generateMercadoPagoPix(
+  env: Record<string, string>,
+  bodyText: string,
+  request: IncomingMessage,
+) {
+  const accessToken = getMercadoPagoAccessToken(env)
+  if (!accessToken) {
+    return {
+      status: 503,
+      body: {
+        code: 'missing_mercado_pago_access_token',
+        error: 'Configure MERCADO_PAGO_ACCESS_TOKEN na Vercel para gerar Pix Mercado Pago.',
+      },
+    }
+  }
+
+  const body = JSON.parse(bodyText || '{}') as MercadoPagoPaymentPayload
+  const amount = sanitizeMercadoPagoAmount(body.amount)
+  const payerEmail = String(body.customer?.email || body.payerEmail || '').trim()
+
+  if (!amount || !payerEmail) {
+    return { status: 400, body: { error: 'Informe valor do pedido e e-mail do pagador.' } }
+  }
+
+  const mode = (env.MERCADO_PAGO_API_MODE || 'payments').toLowerCase()
+  const baseUrl = env.MERCADO_PAGO_API_BASE || 'https://api.mercadopago.com'
+  const endpoint = mode === 'orders' ? '/v1/orders' : '/v1/payments'
+  const payload =
+    mode === 'orders'
+      ? createMercadoPagoOrderPayload(env, body, request)
+      : createMercadoPagoPaymentPayload(env, body, request)
+
+  const mercadoPagoResponse = await fetch(`${baseUrl}${endpoint}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+      'X-Idempotency-Key': String(
+        body.idempotencyKey || `${String(body.orderId || 'JC')}-${Math.round(amount * 100)}`,
+      ),
+    },
+    body: JSON.stringify(payload),
+  })
+  const data = (await mercadoPagoResponse.json()) as MercadoPagoResponsePayload
+
+  if (!mercadoPagoResponse.ok) {
+    return {
+      status: mercadoPagoResponse.status,
+      body: {
+        error: data.message || data.error || 'Mercado Pago recusou a criacao do Pix.',
+        details: data.cause || data,
+      },
+    }
+  }
+
+  return {
+    status: 200,
+    body: {
+      payment: parseMercadoPagoPayment(data, mode === 'orders' ? 'orders' : 'payments'),
+    },
+  }
+}
+
+function parseMercadoPagoSignature(signatureHeader: string | undefined) {
+  return String(signatureHeader || '')
+    .split(',')
+    .map((part) => part.split('='))
+    .reduce<Record<string, string>>((result, [key, value]) => {
+      result[String(key || '').trim()] = String(value || '').trim()
+      return result
+    }, {})
+}
+
+function safeCompareHex(expected: string, actual: string) {
+  const expectedBuffer = Buffer.from(expected || '', 'hex')
+  const actualBuffer = Buffer.from(actual || '', 'hex')
+
+  return (
+    expectedBuffer.length > 0 &&
+    expectedBuffer.length === actualBuffer.length &&
+    timingSafeEqual(expectedBuffer, actualBuffer)
+  )
+}
+
+function verifyMercadoPagoWebhook(env: Record<string, string>, request: IncomingMessage) {
+  const secret = getMercadoPagoWebhookSecret(env)
+  if (!secret) {
+    return { configured: false, valid: true }
+  }
+
+  const { ts, v1 } = parseMercadoPagoSignature(getHeader(request, 'x-signature'))
+  const requestId = getHeader(request, 'x-request-id')
+  const dataId = getMercadoPagoQueryParam(request, 'data.id')
+
+  if (!ts || !v1) {
+    return { configured: true, valid: false }
+  }
+
+  const manifest = [
+    dataId ? `id:${dataId};` : '',
+    requestId ? `request-id:${requestId};` : '',
+    `ts:${ts};`,
+  ].join('')
+  const expected = createHmac('sha256', secret).update(manifest).digest('hex')
+
+  return { configured: true, valid: safeCompareHex(expected, v1) }
+}
+
+function parseMercadoPagoStatus(data: MercadoPagoResponsePayload) {
+  return {
+    provider: 'mercado_pago',
+    paymentId: String(data.id || ''),
+    status: String(data.status || 'pending'),
+    statusDetail: String(data.status_detail || ''),
+    externalReference: String(data.external_reference || ''),
+    amount: Number(data.transaction_amount || data.total_paid_amount || 0),
+    paidAt: data.date_approved || null,
+  }
+}
+
+async function getMercadoPagoStatus(
+  env: Record<string, string>,
+  bodyText: string,
+  request: IncomingMessage,
+) {
+  const accessToken = getMercadoPagoAccessToken(env)
+  if (!accessToken) {
+    return {
+      status: 503,
+      body: {
+        code: 'missing_mercado_pago_access_token',
+        error: 'Configure MERCADO_PAGO_ACCESS_TOKEN na Vercel para consultar pagamentos.',
+      },
+    }
+  }
+
+  const body = request.method === 'POST' ? JSON.parse(bodyText || '{}') : {}
+  const paymentId = String(
+    body.paymentId ||
+      getMercadoPagoQueryParam(request, 'paymentId') ||
+      getMercadoPagoQueryParam(request, 'id') ||
+      '',
+  ).trim()
+
+  if (!paymentId) {
+    return { status: 400, body: { error: 'Informe o paymentId do Mercado Pago.' } }
+  }
+
+  const baseUrl = env.MERCADO_PAGO_API_BASE || 'https://api.mercadopago.com'
+  const mercadoPagoResponse = await fetch(`${baseUrl}/v1/payments/${paymentId}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  })
+  const data = (await mercadoPagoResponse.json()) as MercadoPagoResponsePayload
+
+  if (!mercadoPagoResponse.ok) {
+    return {
+      status: mercadoPagoResponse.status,
+      body: {
+        error: data.message || data.error || 'Nao foi possivel consultar o pagamento.',
+        details: data.cause || data,
+      },
+    }
+  }
+
+  return { status: 200, body: { payment: parseMercadoPagoStatus(data) } }
 }
 
 function verifyPassword(password: string, encodedHash: string) {
@@ -378,6 +771,82 @@ function localApiPlugin(env: Record<string, string>): Plugin {
           sendJson(response, result.status, result.body)
         } catch {
           sendJson(response, 500, { error: 'Nao foi possivel responder agora' })
+        }
+      })
+
+      server.middlewares.use('/api/mercado-pago-pix', async (request, response) => {
+        if (request.method !== 'POST') {
+          sendJson(response, 405, { error: 'Metodo nao permitido' })
+          return
+        }
+
+        try {
+          const result = await generateMercadoPagoPix(env, await readBody(request), request)
+          sendJson(response, result.status, result.body)
+        } catch (error) {
+          sendJson(response, 500, {
+            error:
+              error instanceof Error
+                ? error.message
+                : 'Nao foi possivel gerar Pix Mercado Pago.',
+          })
+        }
+      })
+
+      server.middlewares.use('/api/mercado-pago-status', async (request, response) => {
+        if (!['GET', 'POST'].includes(request.method || '')) {
+          sendJson(response, 405, { error: 'Metodo nao permitido' })
+          return
+        }
+
+        try {
+          const result = await getMercadoPagoStatus(
+            env,
+            request.method === 'POST' ? await readBody(request) : '{}',
+            request,
+          )
+          sendJson(response, result.status, result.body)
+        } catch (error) {
+          sendJson(response, 500, {
+            error:
+              error instanceof Error
+                ? error.message
+                : 'Nao foi possivel consultar o pagamento.',
+          })
+        }
+      })
+
+      server.middlewares.use('/api/mercado-pago-webhook', async (request, response) => {
+        if (request.method !== 'POST') {
+          sendJson(response, 405, { error: 'Metodo nao permitido' })
+          return
+        }
+
+        const signature = verifyMercadoPagoWebhook(env, request)
+        if (!signature.valid) {
+          sendJson(response, 401, { error: 'Webhook Mercado Pago invalido' })
+          return
+        }
+
+        try {
+          const body = JSON.parse(await readBody(request) || '{}') as {
+            action?: string
+            id?: string
+            type?: string
+            data?: { id?: string }
+          }
+          sendJson(response, 200, {
+            received: true,
+            verified: signature.configured,
+            provider: 'mercado_pago',
+            topic: getMercadoPagoQueryParam(request, 'type') || body.type || '',
+            action: body.action || '',
+            dataId:
+              getMercadoPagoQueryParam(request, 'data.id') ||
+              String(body.data?.id || body.id || ''),
+          })
+        } catch {
+          sendJson(response, 400, { error: 'Webhook Mercado Pago invalido' })
         }
       })
     },

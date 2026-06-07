@@ -5,9 +5,9 @@ import { MediaPreview } from '../components/MediaPreview'
 import { useAuth } from '../context/useAuth'
 import { useCart } from '../context/useCart'
 import { useStore } from '../context/useStore'
-import type { PaymentMethod } from '../types'
+import type { PaymentIntent, PaymentMethod } from '../types'
 import { formatCurrency } from '../utils/format'
-import { buildPixPayload, isPixGatewayReady } from '../utils/payment'
+import { buildPixPayload } from '../utils/payment'
 
 const paymentOptions: Array<{ value: PaymentMethod; label: string; icon: typeof QrCode }> = [
   { value: 'pix', label: 'PIX', icon: QrCode },
@@ -32,6 +32,9 @@ export function CheckoutPage() {
   const [method, setMethod] = useState<PaymentMethod>('pix')
   const [createdOrderId, setCreatedOrderId] = useState('')
   const [createdOrderTotal, setCreatedOrderTotal] = useState(0)
+  const [paymentIntent, setPaymentIntent] = useState<PaymentIntent | null>(null)
+  const [paymentError, setPaymentError] = useState('')
+  const [paymentLoading, setPaymentLoading] = useState(false)
   const total = subtotal > 0 ? subtotal + settings.shippingBase : 0
   const displayTotal = createdOrderTotal || total
   const availablePaymentOptions = useMemo(
@@ -46,20 +49,97 @@ export function CheckoutPage() {
   const selectedMethod = availablePaymentOptions.some((option) => option.value === method)
     ? method
     : availablePaymentOptions[0]?.value ?? 'pix'
-  const pixReady = isPixGatewayReady(settings.paymentGateway)
   const pixPayload = buildPixPayload({
     config: settings.paymentGateway,
     amount: displayTotal,
     orderId: createdOrderId || 'PREVIEW',
   })
 
-  function createOrder() {
+  async function createMercadoPagoPix(orderId: string, orderTotal: number) {
+    const response = await fetch('/api/mercado-pago-pix', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        orderId,
+        amount: orderTotal,
+        description: `Pedido ${orderId} - JC Cogumelos`,
+        expirationMinutes: settings.paymentGateway.pixExpirationMinutes,
+        idempotencyKey: `${orderId}-${Math.round(orderTotal * 100)}`,
+        customer: {
+          name: user?.name,
+          email: user?.email,
+        },
+        items: lines.map((line) => ({
+          id: line.product.id,
+          name: line.product.name,
+          quantity: line.quantity,
+          unitPrice: line.product.price,
+        })),
+      }),
+    })
+    const data = (await response.json()) as {
+      payment?: PaymentIntent
+      error?: string
+      code?: string
+    }
+
+    if (!response.ok || !data.payment) {
+      throw new Error(
+        data.error ||
+          (data.code === 'missing_mercado_pago_access_token'
+            ? 'Configure o token Mercado Pago no servidor para gerar o Pix.'
+            : 'Não foi possível gerar o Pix Mercado Pago.'),
+      )
+    }
+
+    return data.payment
+  }
+
+  async function createOrder() {
     if (!user || lines.length === 0 || createdOrderId) {
       return
     }
 
+    setPaymentError('')
+    setPaymentLoading(true)
+
     const orderId = `JC-${Date.now().toString().slice(-6)}`
     const orderTotal = total
+    let nextPaymentIntent: PaymentIntent | null = null
+
+    try {
+      if (selectedMethod === 'pix') {
+        if (settings.paymentGateway.enabled) {
+          nextPaymentIntent = await createMercadoPagoPix(orderId, orderTotal)
+        } else if (settings.paymentGateway.fallbackQrEnabled) {
+          nextPaymentIntent = {
+            provider: 'local',
+            mode: 'fallback',
+            paymentId: orderId,
+            orderId,
+            status: 'pending',
+            statusDetail: '',
+            externalReference: orderId,
+            qrCode: pixPayload,
+            qrCodeBase64: '',
+            ticketUrl: '',
+            rawStatus: 'pending',
+          }
+        } else {
+          throw new Error('Ative a integração Mercado Pago no painel para gerar Pix.')
+        }
+      }
+    } catch (error) {
+      setPaymentError(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível iniciar o pagamento.',
+      )
+      setPaymentLoading(false)
+      return
+    }
 
     setOrders([
       {
@@ -100,6 +180,8 @@ export function CheckoutPage() {
     )
     setCreatedOrderTotal(orderTotal)
     setCreatedOrderId(orderId)
+    setPaymentIntent(nextPaymentIntent)
+    setPaymentLoading(false)
     clearCart()
   }
 
@@ -109,8 +191,8 @@ export function CheckoutPage() {
         <p className="eyebrow">Checkout</p>
         <h1>Finalizar pedido</h1>
         <p>
-          Fluxo preparado para PIX, cartão e cancelamento automático se o pagamento
-          não for aprovado em 5 minutos.
+          Pagamento Pix com QR Code Mercado Pago e acompanhamento de status do
+          pedido.
         </p>
       </div>
 
@@ -136,24 +218,43 @@ export function CheckoutPage() {
           {selectedMethod === 'pix' ? (
             <div className="pix-checkout-box">
               <div className="pix-qr-frame">
-                {pixReady || settings.paymentGateway.fallbackQrEnabled ? (
-                  <QRCodeSVG value={pixPayload} size={188} marginSize={2} />
+                {paymentIntent?.qrCodeBase64 ? (
+                  <img
+                    src={`data:image/jpeg;base64,${paymentIntent.qrCodeBase64}`}
+                    alt="QR Code Pix Mercado Pago"
+                  />
+                ) : paymentIntent?.qrCode ? (
+                  <QRCodeSVG value={paymentIntent.qrCode} size={188} marginSize={2} />
                 ) : (
                   <QrCode size={64} />
                 )}
               </div>
               <div>
                 <strong>
-                  {pixReady
-                    ? 'QR Code PIX pronto para pagamento.'
-                    : 'PIX aguardando configuração do banco.'}
+                  {paymentIntent
+                    ? 'Pix Mercado Pago gerado para este pedido.'
+                    : 'Confirme o pedido para gerar o Pix Mercado Pago.'}
                 </strong>
                 <p>
                   {createdOrderId
                     ? `Pedido ${createdOrderId} · ${formatCurrency(displayTotal)}`
                     : `${settings.paymentGateway.provider} · ${formatCurrency(displayTotal)}`}
                 </p>
-                <code>{pixPayload}</code>
+                {paymentIntent?.ticketUrl && (
+                  <a
+                    className="payment-link"
+                    href={paymentIntent.ticketUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Abrir instruções de pagamento
+                  </a>
+                )}
+                <code>
+                  {paymentIntent?.qrCode ||
+                    'O código Pix copia e cola aparecerá aqui depois da confirmação.'}
+                </code>
+                {paymentError && <p className="form-error">{paymentError}</p>}
               </div>
             </div>
           ) : (
@@ -198,7 +299,7 @@ export function CheckoutPage() {
           </div>
           <div className="timer-card">
             <TimerReset size={22} />
-            <p>Pedidos sem pagamento podem ser cancelados automaticamente.</p>
+            <p>O Pix respeita o tempo de expiração configurado para a loja.</p>
           </div>
           <div className="summary-total">
             <span>Total estimado</span>
@@ -208,9 +309,13 @@ export function CheckoutPage() {
             className="primary-button justify-center"
             type="button"
             onClick={createOrder}
-            disabled={lines.length === 0 || Boolean(createdOrderId)}
+            disabled={lines.length === 0 || Boolean(createdOrderId) || paymentLoading}
           >
-            {createdOrderId ? `Pedido ${createdOrderId} criado` : 'Confirmar pedido'}
+            {paymentLoading
+              ? 'Gerando Pix...'
+              : createdOrderId
+                ? `Pedido ${createdOrderId} criado`
+                : 'Confirmar pedido'}
           </button>
         </aside>
       </div>

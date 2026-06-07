@@ -64,6 +64,19 @@ trocar o modelo, ajuste `OPENAI_MODEL`. A chave da OpenAI não deve usar prefixo
 Sem `OPENAI_API_KEY`, o chat não simula respostas automáticas: ele avisa que a
 conexão GPT precisa ser configurada no servidor.
 
+## Pix Mercado Pago
+
+O checkout gera Pix pelo endpoint server-side `/api/mercado-pago-pix`, usando o
+modelo Checkout Transparente do Mercado Pago. Configure na Vercel:
+
+- `MERCADO_PAGO_ACCESS_TOKEN`: token privado da aplicação Mercado Pago.
+- `MERCADO_PAGO_API_MODE=payments`: usa `/v1/payments` por padrão.
+- `MERCADO_PAGO_WEBHOOK_URL=https://jccogumelos.vercel.app/api/mercado-pago-webhook`
+- `MERCADO_PAGO_WEBHOOK_SECRET`: chave secreta do webhook, opcional mas recomendada.
+
+O Access Token não deve ser salvo no painel administrativo nem em variável
+`VITE_`. O painel apenas mostra a configuração operacional e o webhook.
+
 ## Scripts
 
 ```bash

@@ -118,6 +118,20 @@ export interface PaymentGatewayConfig {
   fallbackQrEnabled: boolean
 }
 
+export interface PaymentIntent {
+  provider: 'mercado_pago' | 'local'
+  mode: string
+  paymentId: string
+  orderId: string
+  status: string
+  statusDetail: string
+  externalReference: string
+  qrCode: string
+  qrCodeBase64: string
+  ticketUrl: string
+  rawStatus?: string | null
+}
+
 export interface StoreSettings {
   companyName: string
   instagram: string

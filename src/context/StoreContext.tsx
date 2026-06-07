@@ -42,6 +42,16 @@ const defaultState: StoredState = {
 
 function normalizeState(state: Partial<StoredState>): StoredState {
   const incomingSettings = state.settings
+  const incomingGateway = incomingSettings?.paymentGateway
+  const mergedPaymentGateway = {
+    ...seedStoreSettings.paymentGateway,
+    ...incomingGateway,
+  }
+  const legacyEmptyGateway =
+    incomingGateway &&
+    incomingGateway.provider === 'Banco' &&
+    !incomingGateway.apiEndpoint &&
+    String(incomingGateway.webhookUrl || '').includes('/api/payment-webhook')
 
   return {
     ...defaultState,
@@ -49,10 +59,18 @@ function normalizeState(state: Partial<StoredState>): StoredState {
     settings: {
       ...seedStoreSettings,
       ...incomingSettings,
-      paymentGateway: {
-        ...seedStoreSettings.paymentGateway,
-        ...incomingSettings?.paymentGateway,
-      },
+      paymentGateway: legacyEmptyGateway
+        ? {
+            ...mergedPaymentGateway,
+            enabled: true,
+            provider: 'Mercado Pago',
+            apiEndpoint: seedStoreSettings.paymentGateway.apiEndpoint,
+            apiCode: seedStoreSettings.paymentGateway.apiCode,
+            pixExpirationMinutes: seedStoreSettings.paymentGateway.pixExpirationMinutes,
+            webhookUrl: seedStoreSettings.paymentGateway.webhookUrl,
+            fallbackQrEnabled: false,
+          }
+        : mergedPaymentGateway,
     },
   }
 }
