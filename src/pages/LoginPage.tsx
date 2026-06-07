@@ -20,7 +20,7 @@ export function LoginPage() {
       return
     }
 
-    navigate('/loja')
+    navigate(result.user?.role === 'admin' ? '/admin' : '/loja')
   }
 
   return (

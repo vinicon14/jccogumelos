@@ -183,7 +183,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(adminAttempt.user)
       setAdminVerified(true)
       window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(adminAttempt.user))
-      return { ok: true }
+      return { ok: true, user: adminAttempt.user }
     }
 
     if (ADMIN_EMAIL && email === ADMIN_EMAIL) {
@@ -212,7 +212,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(nextUser)
     setAdminVerified(false)
     window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(nextUser))
-    return { ok: true }
+    return { ok: true, user: nextUser }
   }, [])
 
   const register = useCallback((input: RegisterInput) => {
