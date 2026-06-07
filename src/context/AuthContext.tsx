@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { flushSync } from 'react-dom'
 import type { SessionUser } from '../types'
 import { AuthContext, type LoginInput, type RegisterInput } from './authContextValue'
 
@@ -46,6 +47,18 @@ function persistSession(user: SessionUser) {
   setTimeout(() => {
     window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user))
   }, 0)
+}
+
+function commitSession(
+  user: SessionUser | null,
+  setUser: (user: SessionUser | null) => void,
+  setAdminVerified: (verified: boolean) => void,
+  adminVerified: boolean,
+) {
+  flushSync(() => {
+    setUser(user)
+    setAdminVerified(adminVerified)
+  })
 }
 
 async function authenticateAdmin(email: string, password: string) {
@@ -180,8 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const adminAttempt = await authenticateAdmin(email, password)
 
     if (adminAttempt.ok && adminAttempt.user) {
-      setUser(adminAttempt.user)
-      setAdminVerified(true)
+      commitSession(adminAttempt.user, setUser, setAdminVerified, true)
       window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(adminAttempt.user))
       return { ok: true, user: adminAttempt.user }
     }
@@ -209,8 +221,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       role: 'customer',
     }
 
-    setUser(nextUser)
-    setAdminVerified(false)
+    commitSession(nextUser, setUser, setAdminVerified, false)
     window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(nextUser))
     return { ok: true, user: nextUser }
   }, [])
