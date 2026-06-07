@@ -17,8 +17,8 @@ interface OpenAIResponsePayload {
   }
 }
 
-const jozaninhaInstructions = `
-Voce e a Jozaninha, assistente virtual da JC Cogumelos.
+const josaninhaInstructions = `
+Voce e a Josaninha, assistente virtual da JC Cogumelos.
 Responda sempre em portugues do Brasil, com tom sofisticado, acolhedor e objetivo.
 Ajude com qualquer assunto, nao apenas cogumelos. Quando fizer sentido, conecte a resposta com produtos, receitas, assinatura, pedido, WhatsApp ou blog da loja.
 Se a pergunta envolver saude, seguranca alimentar, dinheiro ou lei, responda com cuidado e recomende orientacao profissional quando necessario.
@@ -148,7 +148,7 @@ function normalizeHistory(history: unknown) {
     .filter((message) => message.content.trim())
 }
 
-async function generateJozaninhaReply(env: Record<string, string>, body: string) {
+async function generateJosaninhaReply(env: Record<string, string>, body: string) {
   const apiKey = env.OPENAI_API_KEY?.trim()
   if (!apiKey) {
     return { status: 503, body: { error: 'OPENAI_API_KEY ausente' } }
@@ -169,7 +169,7 @@ async function generateJozaninhaReply(env: Record<string, string>, body: string)
     },
     body: JSON.stringify({
       model: env.OPENAI_MODEL || 'gpt-5.2',
-      instructions: jozaninhaInstructions,
+      instructions: josaninhaInstructions,
       input: [
         ...normalizeHistory(payload.history),
         {
@@ -295,14 +295,14 @@ function localApiPlugin(env: Record<string, string>): Plugin {
         }
       })
 
-      server.middlewares.use('/api/jozaninha', async (request, response) => {
+      server.middlewares.use('/api/josaninha', async (request, response) => {
         if (request.method !== 'POST') {
           sendJson(response, 405, { error: 'Metodo nao permitido' })
           return
         }
 
         try {
-          const result = await generateJozaninhaReply(env, await readBody(request))
+          const result = await generateJosaninhaReply(env, await readBody(request))
           sendJson(response, result.status, result.body)
         } catch {
           sendJson(response, 500, { error: 'Nao foi possivel responder agora' })

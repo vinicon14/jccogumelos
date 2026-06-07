@@ -39,7 +39,7 @@ const benefits = [
   },
   {
     icon: ShieldCheck,
-    title: 'Jozaninha',
+    title: 'Josaninha',
     text: 'Orientação rápida para comparar, preparar e comprar.',
   },
 ]
@@ -155,12 +155,12 @@ export function HomePage({ focus }: HomePageProps) {
         </div>
       </section>
 
-      <section className="section-band" id="blog-jozaninha">
+      <section className="section-band" id="blog-josaninha">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="section-heading">
-            <p>Blog Jozaninha</p>
+            <p>Blog Josaninha</p>
             <h2>Receitas, novidades e dicas rápidas</h2>
-            <Link to="/blog-jozaninha">Abrir blog</Link>
+            <Link to="/blog-josaninha">Abrir blog</Link>
           </div>
           {publishedPosts.length > 0 ? (
             <div className="blog-grid">

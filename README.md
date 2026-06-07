@@ -2,7 +2,7 @@
 
 E-commerce navegável para cogumelos gourmet, com catálogo, carrinho,
 assinaturas, painel do cliente, painel administrativo, PWA instalável
-e assistente virtual Jozaninha.
+e assistente virtual Josaninha.
 
 ## Stack
 
@@ -54,9 +54,9 @@ O admin entra pela mesma tela de login, mas a senha é validada em
 
 Não coloque senha real em variáveis `VITE_`.
 
-## Jozaninha com GPT
+## Josaninha com GPT
 
-A assistente usa a função `api/jozaninha.js` para chamar a OpenAI Responses API
+A assistente usa a função `api/josaninha.js` para chamar a OpenAI Responses API
 no servidor. Configure `OPENAI_API_KEY` no ambiente de deploy e, se quiser
 trocar o modelo, ajuste `OPENAI_MODEL`. A chave da OpenAI não deve usar prefixo
 `VITE_`, porque ela nunca deve ser enviada para o navegador.

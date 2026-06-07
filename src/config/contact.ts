@@ -8,7 +8,7 @@ export const contact = {
   contactEmail: rawContactEmail,
   whatsAppUrl: rawWhatsAppNumber
     ? `https://wa.me/${rawWhatsAppNumber}?text=${encodeURIComponent(
-        'Olá Jozaninha, quero comprar cogumelos',
+        'Olá Josaninha, quero comprar cogumelos',
       )}`
     : '',
 }

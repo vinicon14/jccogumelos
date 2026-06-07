@@ -20,7 +20,7 @@ export function LandingPage() {
           <h1>Cogumelos frescos, sem complicar.</h1>
           <p>
             Uma loja limpa para escolher, comprar e acompanhar produtos gourmet
-            com orientação da Jozaninha quando você quiser.
+            com orientação da Josaninha quando você quiser.
           </p>
           <div className="landing-actions">
             <Link className="primary-button" to="/login">
@@ -50,7 +50,7 @@ export function LandingPage() {
         </span>
         <span>
           <MessageCircle size={16} />
-          Jozaninha
+          Josaninha
         </span>
       </div>
     </section>

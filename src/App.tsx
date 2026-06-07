@@ -39,7 +39,7 @@ const navItems = [
   { to: '/loja', label: 'Início' },
   { to: '/catalogo', label: 'Catálogo' },
   { to: '/assinaturas', label: 'Assinaturas' },
-  { to: '/blog-jozaninha', label: 'Blog Jozaninha' },
+  { to: '/blog-josaninha', label: 'Blog Josaninha' },
   { to: '/conta', label: 'Minha conta' },
 ]
 
@@ -332,7 +332,7 @@ function App() {
           <Route path="/loja" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
           <Route path="/catalogo" element={<ProtectedRoute><CatalogPage /></ProtectedRoute>} />
           <Route path="/assinaturas" element={<ProtectedRoute><HomePage focus="assinaturas" /></ProtectedRoute>} />
-          <Route path="/blog-jozaninha" element={<ProtectedRoute><BlogPage /></ProtectedRoute>} />
+          <Route path="/blog-josaninha" element={<ProtectedRoute><BlogPage /></ProtectedRoute>} />
           <Route path="/carrinho" element={<ProtectedRoute><CartPage /></ProtectedRoute>} />
           <Route path="/checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
           <Route path="/conta" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
@@ -351,7 +351,7 @@ function App() {
             </div>
             <p className="max-w-md text-sm leading-6 text-[#d9c6ad]">
               Cogumelos gourmet frescos, kits recorrentes e atendimento inteligente
-              com a Jozaninha para varejo, chefs, mercados e restaurantes.
+              com a Josaninha para varejo, chefs, mercados e restaurantes.
             </p>
           </div>
           <div>
@@ -375,9 +375,9 @@ function App() {
                 <UserRound size={15} />
                 Minha conta
               </Link>
-              <Link className="footer-pill" to="/blog-jozaninha">
+              <Link className="footer-pill" to="/blog-josaninha">
                 <Sprout size={15} />
-                Blog Jozaninha
+                Blog Josaninha
               </Link>
             </div>
           </div>

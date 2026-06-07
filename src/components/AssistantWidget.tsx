@@ -33,7 +33,7 @@ type SpeechRecognitionConstructor = new () => SpeechRecognitionLike
 const initialMessages: ChatMessage[] = [
   {
     role: 'assistant',
-    text: 'Oi, eu sou a Jozaninha. Pode perguntar qualquer coisa: produtos, receitas, pedidos ou uma dúvida do dia a dia.',
+    text: 'Oi, eu sou a Josaninha. Pode perguntar qualquer coisa: produtos, receitas, pedidos ou uma dúvida do dia a dia.',
   },
 ]
 
@@ -78,8 +78,8 @@ function buildFallbackReply(message: string) {
   return `Entendi sua pergunta sobre "${cleanMessage.slice(0, 90)}". De forma direta: posso te ajudar com isso e, se quiser conectar com a loja, transformo a ideia em sugestão de produto, preparo ou pedido.`
 }
 
-async function requestJozaninhaReply(message: string, history: ChatMessage[]) {
-  const response = await fetch('/api/jozaninha', {
+async function requestJosaninhaReply(message: string, history: ChatMessage[]) {
+  const response = await fetch('/api/josaninha', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -140,7 +140,7 @@ export function AssistantWidget() {
     setThinking(true)
 
     try {
-      const reply = await requestJozaninhaReply(text, nextHistory)
+      const reply = await requestJosaninhaReply(text, nextHistory)
       setMessages((current) => [...current, { role: 'assistant', text: reply }])
     } catch {
       setMessages((current) => [
@@ -198,7 +198,7 @@ export function AssistantWidget() {
           <header className="flex items-center justify-between bg-[#28513c] px-4 py-3 text-white">
             <div className="flex items-center gap-2">
               <Bot size={20} />
-              <strong>Jozaninha</strong>
+              <strong>Josaninha</strong>
             </div>
             <button
               className="grid h-8 w-8 place-items-center rounded-[8px] hover:bg-white/15"
@@ -225,7 +225,7 @@ export function AssistantWidget() {
               ))}
               {thinking && (
                 <p className="max-w-[88%] rounded-[8px] bg-white px-3 py-2 text-sm leading-5 text-[#4d3929]">
-                  Jozaninha está pensando...
+                  Josaninha está pensando...
                 </p>
               )}
             </div>
@@ -272,7 +272,7 @@ export function AssistantWidget() {
         onClick={() => setOpen((value) => !value)}
       >
         <Bot size={21} />
-        Jozaninha
+        Josaninha
       </button>
     </div>
   )

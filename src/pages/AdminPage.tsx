@@ -168,11 +168,11 @@ export function AdminPage() {
         {
           id: crypto.randomUUID(),
           audience: 'customer',
-          title: 'Novo post no Blog Jozaninha',
+          title: 'Novo post no Blog Josaninha',
           message: currentPost.title,
           createdAt: new Date().toISOString(),
           read: false,
-          link: '/blog-jozaninha',
+          link: '/blog-josaninha',
         },
         ...notifications,
       ])
@@ -256,7 +256,7 @@ export function AdminPage() {
           <FilePlus2 size={24} />
           <span>Blog</span>
           <strong>{blogPosts.filter((post) => post.published).length}</strong>
-          <p>Posts publicados no Blog Jozaninha.</p>
+          <p>Posts publicados no Blog Josaninha.</p>
         </article>
         <article className="metric-card">
           <Percent size={24} />
@@ -548,7 +548,7 @@ export function AdminPage() {
         <div className="admin-section-title">
           <FilePlus2 size={22} />
           <div>
-            <h2>Blog Jozaninha</h2>
+            <h2>Blog Josaninha</h2>
             <p>Crie, edite, publique ou tire posts do ar.</p>
           </div>
           <button
@@ -1023,7 +1023,7 @@ export function AdminPage() {
                 }))
               }
             />
-            Jozaninha ativa
+            Josaninha ativa
           </label>
           <label className="toggle-row">
             <input

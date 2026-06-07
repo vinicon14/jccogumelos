@@ -9,7 +9,7 @@ export function BlogPage() {
   return (
     <section className="page-shell">
       <div className="page-heading">
-        <p className="eyebrow">Blog Jozaninha</p>
+        <p className="eyebrow">Blog Josaninha</p>
         <h1>Receitas e novidades</h1>
         <p>
           Conteúdos curtos publicados no painel administrativo.
@@ -39,7 +39,7 @@ export function BlogPage() {
         </div>
       ) : (
         <div className="empty-state">
-          <h2>O Blog Jozaninha ainda não tem posts publicados.</h2>
+          <h2>O Blog Josaninha ainda não tem posts publicados.</h2>
         </div>
       )}
     </section>
