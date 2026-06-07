@@ -7,6 +7,7 @@ import {
   useLocation,
 } from 'react-router-dom'
 import {
+  Camera,
   Menu,
   MessageCircle,
   LogOut,
@@ -18,6 +19,7 @@ import {
 import { useEffect, useState, type ReactNode } from 'react'
 import { AssistantWidget } from './components/AssistantWidget'
 import { BrandMark } from './components/BrandMark'
+import { contact } from './config/contact'
 import { useAuth } from './context/useAuth'
 import { useCart } from './context/useCart'
 import { AccountPage } from './pages/AccountPage'
@@ -106,15 +108,27 @@ function App() {
           </nav>
 
           <div className="flex items-center gap-2">
-            <a
-              className="hidden items-center gap-2 rounded-[8px] bg-[#28513c] px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#1f3f2f] sm:inline-flex"
-              href="https://wa.me/5500000000000?text=Olá%20Jozaninha,%20quero%20comprar%20cogumelos"
-              target="_blank"
-              rel="noreferrer"
-            >
-              <MessageCircle size={17} />
-              WhatsApp
-            </a>
+            {contact.whatsAppUrl ? (
+              <a
+                className="hidden items-center gap-2 rounded-[8px] bg-[#28513c] px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#1f3f2f] sm:inline-flex"
+                href={contact.whatsAppUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <MessageCircle size={17} />
+                WhatsApp
+              </a>
+            ) : (
+              <a
+                className="hidden items-center gap-2 rounded-[8px] bg-[#28513c] px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#1f3f2f] sm:inline-flex"
+                href={contact.instagramUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Camera size={17} />
+                Instagram
+              </a>
+            )}
             {user && (
               <button
                 className="hidden h-10 items-center gap-2 rounded-[8px] border border-[#eadcc8] bg-white px-3 text-sm font-bold text-[#3b2a1d] transition hover:border-[#c96d38] sm:inline-flex"
@@ -220,9 +234,11 @@ function App() {
               Canais
             </strong>
             <div className="grid gap-2 text-sm text-[#d9c6ad]">
-              <span>WhatsApp: configurar número oficial</span>
-              <span>Instagram: @jc_cogumelos</span>
-              <span>E-mail: contato@jccogumelos.com.br</span>
+              {contact.whatsAppUrl && <span>WhatsApp oficial</span>}
+              <a href={contact.instagramUrl} target="_blank" rel="noreferrer">
+                Instagram: {contact.instagramHandle}
+              </a>
+              {contact.contactEmail && <span>E-mail: {contact.contactEmail}</span>}
             </div>
           </div>
           <div>

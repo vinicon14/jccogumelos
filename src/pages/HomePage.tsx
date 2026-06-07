@@ -7,10 +7,12 @@ import {
   PackageCheck,
   ShieldCheck,
   Truck,
+  Camera,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { ProductCard } from '../components/ProductCard'
 import { BrandMark } from '../components/BrandMark'
+import { contact } from '../config/contact'
 import { useStore } from '../context/useStore'
 import { formatCurrency } from '../utils/format'
 
@@ -67,7 +69,7 @@ export function HomePage({ focus }: HomePageProps) {
               </Link>
               <a
                 className="secondary-button"
-                href="https://www.instagram.com/jc_cogumelos/"
+                href={contact.instagramUrl}
                 target="_blank"
                 rel="noreferrer"
               >
@@ -184,15 +186,27 @@ export function HomePage({ focus }: HomePageProps) {
           <p className="eyebrow">Atendimento rápido</p>
           <h2>Escolha com ajuda, compre sem complicar.</h2>
         </div>
-        <a
-          className="primary-button"
-          href="https://wa.me/5500000000000?text=Olá%20Jozaninha,%20quero%20comprar%20cogumelos"
-          target="_blank"
-          rel="noreferrer"
-        >
-          <MessageCircle size={19} />
-          Chamar no WhatsApp
-        </a>
+        {contact.whatsAppUrl ? (
+          <a
+            className="primary-button"
+            href={contact.whatsAppUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <MessageCircle size={19} />
+            Chamar no WhatsApp
+          </a>
+        ) : (
+          <a
+            className="primary-button"
+            href={contact.instagramUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <Camera size={19} />
+            Falar pelo Instagram
+          </a>
+        )}
       </section>
     </>
   )

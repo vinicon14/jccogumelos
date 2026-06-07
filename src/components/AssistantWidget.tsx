@@ -6,6 +6,30 @@ interface ChatMessage {
   text: string
 }
 
+interface SpeechRecognitionAlternativeLike {
+  transcript: string
+}
+
+interface SpeechRecognitionEventLike {
+  results: {
+    [index: number]: {
+      [index: number]: SpeechRecognitionAlternativeLike
+    }
+  }
+}
+
+interface SpeechRecognitionLike {
+  lang: string
+  interimResults: boolean
+  maxAlternatives: number
+  onend: (() => void) | null
+  onerror: (() => void) | null
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null
+  start: () => void
+}
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike
+
 const initialMessages: ChatMessage[] = [
   {
     role: 'assistant',
@@ -81,17 +105,26 @@ async function requestJozaninhaReply(message: string, history: ChatMessage[]) {
   return reply
 }
 
+function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | null {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  const speechWindow = window as Window & {
+    SpeechRecognition?: SpeechRecognitionConstructor
+    webkitSpeechRecognition?: SpeechRecognitionConstructor
+  }
+
+  return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition ?? null
+}
+
 export function AssistantWidget() {
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
   const [thinking, setThinking] = useState(false)
-  const speechSupported = useMemo(
-    () =>
-      typeof window !== 'undefined' &&
-      ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window),
-    [],
-  )
+  const [listening, setListening] = useState(false)
+  const speechRecognition = useMemo(() => getSpeechRecognitionConstructor(), [])
 
   async function sendMessage() {
     const text = input.trim()
@@ -120,7 +153,7 @@ export function AssistantWidget() {
   }
 
   function handleVoiceClick() {
-    if (!speechSupported) {
+    if (!speechRecognition) {
       setMessages((current) => [
         ...current,
         {
@@ -131,13 +164,31 @@ export function AssistantWidget() {
       return
     }
 
-    setMessages((current) => [
-      ...current,
-      {
-        role: 'assistant',
-          text: 'Entrada por voz detectada. Em breve, ela poderá transformar sua fala em mensagem para a Jozaninha.',
-      },
-    ])
+    const recognition = new speechRecognition()
+
+    recognition.lang = 'pt-BR'
+    recognition.interimResults = false
+    recognition.maxAlternatives = 1
+    recognition.onresult = (event) => {
+      const transcript = event.results[0]?.[0]?.transcript?.trim()
+
+      if (transcript) {
+        setInput((current) => (current ? `${current} ${transcript}` : transcript))
+      }
+    }
+    recognition.onerror = () => {
+      setMessages((current) => [
+        ...current,
+        {
+          role: 'assistant',
+          text: 'Não consegui ouvir com clareza agora. Pode tentar de novo ou digitar a mensagem.',
+        },
+      ])
+    }
+    recognition.onend = () => setListening(false)
+
+    setListening(true)
+    recognition.start()
   }
 
   return (
@@ -181,11 +232,11 @@ export function AssistantWidget() {
           </div>
           <div className="flex items-center gap-2 border-t border-[#eadcc8] p-3">
             <button
-              className="icon-small"
+              className={`icon-small ${listening ? 'bg-[#28513c] text-white' : ''}`}
               type="button"
               onClick={handleVoiceClick}
               aria-label="Usar áudio"
-              title="Usar áudio"
+              title={listening ? 'Ouvindo' : 'Usar áudio'}
             >
               <Mic size={17} />
             </button>

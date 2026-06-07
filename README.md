@@ -32,6 +32,17 @@ O projeto está preparado para:
 
 O schema inicial está em `supabase/schema.sql`.
 
+## Contatos
+
+Configure os canais públicos sem editar código:
+
+- `VITE_INSTAGRAM_URL`
+- `VITE_WHATSAPP_NUMBER`
+- `VITE_CONTACT_EMAIL`
+
+Se `VITE_WHATSAPP_NUMBER` estiver vazio, a interface usa o Instagram como canal
+principal e não exibe número falso.
+
 ## Login administrativo
 
 O admin entra pela mesma tela de login, mas a senha é validada em

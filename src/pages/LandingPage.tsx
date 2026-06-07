@@ -1,6 +1,7 @@
 import { ArrowRight, Camera, MessageCircle, ShieldCheck } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { BrandMark } from '../components/BrandMark'
+import { contact } from '../config/contact'
 
 export function LandingPage() {
   return (
@@ -28,7 +29,7 @@ export function LandingPage() {
             </Link>
             <a
               className="secondary-button"
-              href="https://www.instagram.com/jc_cogumelos/"
+              href={contact.instagramUrl}
               target="_blank"
               rel="noreferrer"
             >
