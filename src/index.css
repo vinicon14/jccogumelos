@@ -738,6 +738,25 @@ img {
   padding: 0;
 }
 
+.cep-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.cep-action-row .secondary-button {
+  min-height: 2.35rem;
+  padding: 0.48rem 0.72rem;
+  font-size: 0.8rem;
+}
+
+.cep-action-row span {
+  color: #6f5a45;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
 .filter-panel {
   display: grid;
   gap: 1rem;
@@ -2248,6 +2267,95 @@ button:disabled,
   gap: 0.52rem;
 }
 
+.admin-count-pill {
+  margin-left: auto;
+  border-radius: 999px;
+  background: rgba(35, 61, 47, 0.09);
+  padding: 0.28rem 0.58rem;
+  color: #254c39;
+  font-size: 0.72rem;
+  font-weight: 1000;
+}
+
+.admin-customer-search {
+  margin-bottom: 0.62rem;
+  min-height: 2.15rem;
+}
+
+.admin-customer-grid {
+  display: grid;
+  gap: 0.52rem;
+}
+
+@media (min-width: 780px) {
+  .admin-customer-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.admin-customer-card {
+  display: grid;
+  gap: 0.54rem;
+  border: 1px solid rgba(54, 48, 40, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 0.68rem;
+}
+
+.admin-customer-topline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.admin-customer-topline strong,
+.admin-customer-topline span,
+.admin-customer-topline small {
+  display: block;
+}
+
+.admin-customer-topline strong {
+  color: #2d2018;
+  font-size: 0.92rem;
+  line-height: 1.2;
+}
+
+.admin-customer-topline span,
+.admin-customer-topline small {
+  margin-top: 0.12rem;
+  color: #6f5a45;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.admin-customer-topline small {
+  white-space: nowrap;
+}
+
+.admin-customer-lines {
+  display: grid;
+  gap: 0.36rem;
+}
+
+.admin-customer-lines span {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 0.42rem;
+  color: #4a4038;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.admin-customer-lines svg {
+  flex: 0 0 auto;
+  margin-top: 0.08rem;
+  color: #9f441f;
+}
+
 .admin-product-card,
 .admin-order-card,
 .customer-order-card,
@@ -2369,6 +2477,27 @@ button:disabled,
   font-size: 0.72rem;
   font-weight: 800;
   line-height: 1.35;
+}
+
+.secret-action-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.admin-edit-section .secret-action-row .secondary-button {
+  min-height: 2.15rem;
+  padding: 0.42rem 0.68rem;
+  font-size: 0.76rem;
+}
+
+.form-success {
+  border-radius: 8px;
+  background: rgba(35, 61, 47, 0.09);
+  padding: 0.58rem 0.68rem;
+  color: #254c39;
+  font-size: 0.8rem;
+  font-weight: 900;
+  line-height: 1.45;
 }
 
 .pix-checkout-box,

@@ -10,7 +10,11 @@ export interface RegisterInput {
   name: string
   email: string
   phone: string
+  cep: string
+  street: string
+  neighborhood: string
   city: string
+  state: string
   accountType: AccountType
   password: string
   confirmPassword: string

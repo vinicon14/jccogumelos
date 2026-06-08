@@ -3,16 +3,23 @@ import {
   FilePlus2,
   Image as ImageIcon,
   KeyRound,
+  Mail,
+  MapPin,
   MessageCircle,
   Percent,
+  Phone,
   Plus,
   QrCode,
+  Save,
+  Search,
   Settings,
   ShoppingCart,
   Trash2,
+  UsersRound,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { MediaPreview } from '../components/MediaPreview'
+import { useAuth } from '../context/useAuth'
 import { useStore } from '../context/useStore'
 import type {
   BlogPost,
@@ -24,6 +31,12 @@ import type {
   ProductCategory,
   SubscriptionPlan,
 } from '../types'
+import {
+  formatCep,
+  formatCustomerAddress,
+  normalizeAccountType,
+  readStoredCustomers,
+} from '../utils/customers'
 import { formatCurrency } from '../utils/format'
 import { inferMediaType, readMediaFile } from '../utils/media'
 
@@ -102,6 +115,7 @@ function createBlogPost(): BlogPost {
 }
 
 export function AdminPage() {
+  const { user } = useAuth()
   const {
     products,
     subscriptionPlans,
@@ -119,11 +133,58 @@ export function AdminPage() {
     setSettings,
   } = useStore()
   const [mediaError, setMediaError] = useState('')
+  const [mercadoPagoTokenDraft, setMercadoPagoTokenDraft] = useState('')
+  const [openAiKeyDraft, setOpenAiKeyDraft] = useState('')
+  const [savingSecretKey, setSavingSecretKey] = useState('')
+  const [secretFeedbackKey, setSecretFeedbackKey] = useState('')
+  const [secretMessage, setSecretMessage] = useState('')
+  const [secretError, setSecretError] = useState('')
+  const [customerSearch, setCustomerSearch] = useState('')
+  const [registeredCustomers, setRegisteredCustomers] = useState(() => readStoredCustomers())
 
   const monthSales = orders.reduce((total, order) => total + order.total, 0)
   const productByName = useMemo(() => {
     return new Map(products.map((product) => [product.name, product]))
   }, [products])
+  const filteredCustomers = useMemo(() => {
+    const query = customerSearch.trim().toLowerCase()
+
+    if (!query) {
+      return registeredCustomers
+    }
+
+    return registeredCustomers.filter((customer) => {
+      const content = [
+        customer.name,
+        customer.email,
+        customer.phone,
+        customer.cep,
+        customer.street,
+        customer.neighborhood,
+        customer.city,
+        customer.state,
+        customer.accountType,
+      ]
+        .join(' ')
+        .toLowerCase()
+
+      return content.includes(query)
+    })
+  }, [customerSearch, registeredCustomers])
+
+  useEffect(() => {
+    function syncCustomers() {
+      setRegisteredCustomers(readStoredCustomers())
+    }
+
+    window.addEventListener('storage', syncCustomers)
+    window.addEventListener('focus', syncCustomers)
+
+    return () => {
+      window.removeEventListener('storage', syncCustomers)
+      window.removeEventListener('focus', syncCustomers)
+    }
+  }, [])
 
   function updateProduct(id: string, patch: Partial<Product>) {
     setProducts(
@@ -219,6 +280,67 @@ export function AdminPage() {
     }
   }
 
+  async function saveAdminSecret(key: string, value: string, label: string) {
+    if (!user?.adminToken) {
+      setSecretError('Sessão administrativa expirada. Entre novamente.')
+      setSecretMessage('')
+      return
+    }
+
+    if (!value.trim()) {
+      setSecretError(`Informe ${label}.`)
+      setSecretMessage('')
+      return
+    }
+
+    setSavingSecretKey(key)
+    setSecretFeedbackKey(key)
+    setSecretError('')
+    setSecretMessage('')
+
+    try {
+      const response = await fetch('/api/admin-secret', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${user.adminToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ key, value }),
+      })
+      const data = (await response.json()) as {
+        error?: string
+        label?: string
+        redeploy?: 'triggered' | 'failed' | 'not_configured'
+      }
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Não foi possível salvar na Vercel.')
+      }
+
+      if (key === 'MERCADO_PAGO_ACCESS_TOKEN') {
+        setMercadoPagoTokenDraft('')
+      }
+
+      if (key === 'OPENAI_API_KEY') {
+        setOpenAiKeyDraft('')
+      }
+
+      setSecretMessage(
+        `${data.label || label} salvo na Vercel.${
+          data.redeploy === 'triggered'
+            ? ' Deploy automático iniciado.'
+            : ' A próxima publicação usará o novo valor.'
+        }`,
+      )
+    } catch (error) {
+      setSecretError(
+        error instanceof Error ? error.message : 'Não foi possível salvar na Vercel.',
+      )
+    } finally {
+      setSavingSecretKey('')
+    }
+  }
+
   const mercadoPagoReady =
     settings.paymentGateway.enabled &&
     settings.paymentGateway.provider.toLowerCase().includes('mercado')
@@ -247,6 +369,12 @@ export function AdminPage() {
           <strong>{products.length}</strong>
           <p>Fotos, preços e estoque editáveis.</p>
         </article>
+        <article className="metric-card">
+          <UsersRound size={24} />
+          <span>Clientes</span>
+          <strong>{registeredCustomers.length}</strong>
+          <p>Cadastro, contato e endereço por CEP.</p>
+        </article>
         <article className="metric-card green">
           <FilePlus2 size={24} />
           <span>Blog</span>
@@ -260,6 +388,62 @@ export function AdminPage() {
           <p>Assinaturas editáveis.</p>
         </article>
       </div>
+
+      <section className="table-panel admin-edit-section">
+        <div className="admin-section-title">
+          <UsersRound size={22} />
+          <div>
+            <h2>Clientes cadastrados</h2>
+            <p>Busque por nome e visualize telefone, e-mail, CEP e endereço.</p>
+          </div>
+          <span className="admin-count-pill">{registeredCustomers.length}</span>
+        </div>
+        <label className="search-field admin-customer-search">
+          <Search size={17} />
+          <input
+            placeholder="Buscar cliente por nome, e-mail, telefone ou CEP"
+            value={customerSearch}
+            onChange={(event) => setCustomerSearch(event.target.value)}
+          />
+        </label>
+        {registeredCustomers.length === 0 ? (
+          <div className="empty-state compact">
+            <h2>Nenhum cliente cadastrado ainda.</h2>
+          </div>
+        ) : filteredCustomers.length === 0 ? (
+          <div className="empty-state compact">
+            <h2>Nenhum cliente encontrado.</h2>
+          </div>
+        ) : (
+          <div className="admin-customer-grid">
+            {filteredCustomers.map((customer) => (
+              <article className="admin-customer-card" key={customer.id}>
+                <div className="admin-customer-topline">
+                  <div>
+                    <strong>{customer.name}</strong>
+                    <span>{normalizeAccountType(customer.accountType)}</span>
+                  </div>
+                  {customer.cep && <small>{formatCep(customer.cep)}</small>}
+                </div>
+                <div className="admin-customer-lines">
+                  <span>
+                    <Mail size={15} />
+                    {customer.email || 'E-mail não cadastrado'}
+                  </span>
+                  <span>
+                    <Phone size={15} />
+                    {customer.phone || 'Telefone não cadastrado'}
+                  </span>
+                  <span>
+                    <MapPin size={15} />
+                    {formatCustomerAddress(customer)}
+                  </span>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
 
       <section className="table-panel admin-edit-section">
         <div className="admin-section-title">
@@ -913,15 +1097,40 @@ export function AdminPage() {
                 Access Token
                 <input
                   type="password"
-                  value=""
-                  placeholder="Protegido em MERCADO_PAGO_ACCESS_TOKEN"
-                  readOnly
+                  value={mercadoPagoTokenDraft}
+                  placeholder="Cole o access token do Mercado Pago"
+                  onChange={(event) => setMercadoPagoTokenDraft(event.target.value)}
                 />
                 <span className="field-hint">
-                  Salve o token real nas variáveis privadas da Vercel.
+                  Ao salvar, o token vai para MERCADO_PAGO_ACCESS_TOKEN na Vercel.
                 </span>
               </label>
             </div>
+            <div className="secret-action-row">
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={savingSecretKey === 'MERCADO_PAGO_ACCESS_TOKEN'}
+                onClick={() =>
+                  saveAdminSecret(
+                    'MERCADO_PAGO_ACCESS_TOKEN',
+                    mercadoPagoTokenDraft,
+                    'Access Token Mercado Pago',
+                  )
+                }
+              >
+                <Save size={16} />
+                {savingSecretKey === 'MERCADO_PAGO_ACCESS_TOKEN'
+                  ? 'Salvando...'
+                  : 'Salvar token na Vercel'}
+              </button>
+            </div>
+            {secretFeedbackKey === 'MERCADO_PAGO_ACCESS_TOKEN' && secretMessage && (
+              <p className="form-success">{secretMessage}</p>
+            )}
+            {secretFeedbackKey === 'MERCADO_PAGO_ACCESS_TOKEN' && secretError && (
+              <p className="form-error">{secretError}</p>
+            )}
             <div className="admin-field-row compact">
               <label className="field-label">
                 ID da conta/aplicação
@@ -1013,6 +1222,52 @@ export function AdminPage() {
               </div>
               <code>/api/mercado-pago-pix</code>
             </div>
+          </div>
+
+          <div className="payment-integration-card ai-secret-card">
+            <div className="admin-section-title compact">
+              <KeyRound size={18} />
+              <div>
+                <h3>GPT / OpenAI</h3>
+                <p>Chave usada pela Josaninha para responder com GPT.</p>
+              </div>
+            </div>
+            <label className="field-label">
+              API Key GPT
+              <input
+                type="password"
+                value={openAiKeyDraft}
+                placeholder="Cole a chave sk-... da OpenAI"
+                onChange={(event) => setOpenAiKeyDraft(event.target.value)}
+              />
+              <span className="field-hint">
+                Ao salvar, a chave vai para OPENAI_API_KEY na Vercel.
+              </span>
+            </label>
+            <div className="secret-action-row">
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={savingSecretKey === 'OPENAI_API_KEY'}
+                onClick={() =>
+                  saveAdminSecret('OPENAI_API_KEY', openAiKeyDraft, 'API Key GPT')
+                }
+              >
+                <Save size={16} />
+                {savingSecretKey === 'OPENAI_API_KEY'
+                  ? 'Salvando...'
+                  : 'Salvar chave GPT na Vercel'}
+              </button>
+            </div>
+            {secretFeedbackKey === 'OPENAI_API_KEY' && secretMessage && (
+              <p className="form-success">{secretMessage}</p>
+            )}
+            {secretFeedbackKey === 'OPENAI_API_KEY' && secretError && (
+              <p className="form-error">{secretError}</p>
+            )}
+            <p className="field-hint">
+              Para salvar automaticamente, configure VERCEL_API_TOKEN uma vez na Vercel.
+            </p>
           </div>
 
           <label className="toggle-row">

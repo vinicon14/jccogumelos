@@ -2,6 +2,7 @@ import { BadgeCheck, Gift, History, Mail, MapPin, Phone, UserRound } from 'lucid
 import { MediaPreview } from '../components/MediaPreview'
 import { useAuth } from '../context/useAuth'
 import { useStore } from '../context/useStore'
+import { formatCep, formatCustomerAddress } from '../utils/customers'
 import { formatCurrency, formatDate } from '../utils/format'
 
 const statusLabels: Record<string, string> = {
@@ -54,6 +55,18 @@ export function AccountPage() {
               <span>
                 <MapPin size={16} />
                 {user.city}
+              </span>
+            )}
+            {user?.cep && (
+              <span>
+                <MapPin size={16} />
+                {formatCustomerAddress({
+                  cep: formatCep(user.cep),
+                  street: user.street,
+                  neighborhood: user.neighborhood,
+                  city: user.city,
+                  state: user.state,
+                })}
               </span>
             )}
           </div>

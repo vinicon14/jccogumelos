@@ -1,9 +1,18 @@
-import { UserPlus } from 'lucide-react'
+import { MapPin, UserPlus } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { BrandMark } from '../components/BrandMark'
 import { useAuth } from '../context/useAuth'
 import type { AccountType } from '../types'
+import { formatCep, onlyDigits } from '../utils/customers'
+
+interface ViaCepResponse {
+  erro?: boolean
+  logradouro?: string
+  bairro?: string
+  localidade?: string
+  uf?: string
+}
 
 export function RegisterPage() {
   const navigate = useNavigate()
@@ -11,11 +20,46 @@ export function RegisterPage() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
+  const [cep, setCep] = useState('')
+  const [street, setStreet] = useState('')
+  const [neighborhood, setNeighborhood] = useState('')
   const [city, setCity] = useState('')
+  const [state, setState] = useState('')
   const [accountType, setAccountType] = useState<AccountType>('varejo')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
+  const [cepMessage, setCepMessage] = useState('')
+
+  async function lookupCep(nextCep = cep) {
+    const digits = onlyDigits(nextCep)
+
+    if (digits.length !== 8) {
+      if (digits.length > 0) {
+        setCepMessage('Digite um CEP com 8 números.')
+      }
+      return
+    }
+
+    try {
+      setCepMessage('Buscando endereço...')
+      const response = await fetch(`https://viacep.com.br/ws/${digits}/json/`)
+      const data = (await response.json()) as ViaCepResponse
+
+      if (!response.ok || data.erro) {
+        setCepMessage('CEP não encontrado. Preencha o endereço manualmente.')
+        return
+      }
+
+      setStreet(data.logradouro || street)
+      setNeighborhood(data.bairro || neighborhood)
+      setCity(data.localidade || city)
+      setState(data.uf || state)
+      setCepMessage('Endereço preenchido pelo CEP.')
+    } catch {
+      setCepMessage('Não foi possível buscar o CEP agora.')
+    }
+  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -23,7 +67,11 @@ export function RegisterPage() {
       name,
       email,
       phone,
+      cep,
+      street,
+      neighborhood,
       city,
+      state,
       accountType,
       password,
       confirmPassword,
@@ -70,10 +118,47 @@ export function RegisterPage() {
             <input value={phone} onChange={(event) => setPhone(event.target.value)} />
           </label>
           <label className="field-label">
+            CEP
+            <input
+              inputMode="numeric"
+              value={cep}
+              onBlur={() => lookupCep()}
+              onChange={(event) => setCep(formatCep(event.target.value))}
+            />
+          </label>
+        </div>
+        <div className="cep-action-row">
+          <button className="secondary-button" type="button" onClick={() => lookupCep()}>
+            <MapPin size={16} />
+            Buscar CEP
+          </button>
+          {cepMessage && <span>{cepMessage}</span>}
+        </div>
+        <label className="field-label">
+          Rua / endereço
+          <input value={street} onChange={(event) => setStreet(event.target.value)} />
+        </label>
+        <div className="admin-field-row compact">
+          <label className="field-label">
+            Bairro
+            <input
+              value={neighborhood}
+              onChange={(event) => setNeighborhood(event.target.value)}
+            />
+          </label>
+          <label className="field-label">
             Cidade
             <input value={city} onChange={(event) => setCity(event.target.value)} />
           </label>
         </div>
+        <label className="field-label">
+          UF
+          <input
+            maxLength={2}
+            value={state}
+            onChange={(event) => setState(event.target.value.toUpperCase().slice(0, 2))}
+          />
+        </label>
         <label className="field-label">
           Tipo de conta
           <select

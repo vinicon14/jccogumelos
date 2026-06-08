@@ -1,21 +1,16 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
 import type { SessionUser } from '../types'
+import {
+  normalizeCustomer,
+  readStoredCustomers,
+  toSessionUser,
+  writeStoredCustomers,
+} from '../utils/customers'
 import { AuthContext, type LoginInput, type RegisterInput } from './authContextValue'
 
 const AUTH_STORAGE_KEY = 'jc-cogumelos-auth-v1'
-const USERS_STORAGE_KEY = 'jc-cogumelos-users-v1'
 const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL?.trim().toLowerCase()
-
-interface StoredCustomer {
-  id: string
-  name: string
-  email: string
-  phone: string
-  city: string
-  accountType: 'varejo' | 'atacado'
-  password: string
-}
 
 function readStoredUser(): SessionUser | null {
   if (typeof window === 'undefined') {
@@ -27,19 +22,6 @@ function readStoredUser(): SessionUser | null {
     return raw ? (JSON.parse(raw) as SessionUser) : null
   } catch {
     return null
-  }
-}
-
-function readStoredCustomers(): StoredCustomer[] {
-  if (typeof window === 'undefined') {
-    return []
-  }
-
-  try {
-    const raw = window.localStorage.getItem(USERS_STORAGE_KEY)
-    return raw ? (JSON.parse(raw) as StoredCustomer[]) : []
-  } catch {
-    return []
   }
 }
 
@@ -211,15 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { ok: false, message: 'Cliente não encontrado. Faça o cadastro primeiro.' }
     }
 
-    const nextUser: SessionUser = {
-      id: customer.id,
-      name: customer.name,
-      email: customer.email,
-      phone: customer.phone,
-      city: customer.city,
-      accountType: customer.accountType,
-      role: 'customer',
-    }
+    const nextUser = toSessionUser(customer)
 
     commitSession(nextUser, setUser, setAdminVerified, false)
     window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(nextUser))
@@ -242,27 +216,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { ok: false, message: 'Este e-mail já possui cadastro.' }
     }
 
-    const customer: StoredCustomer = {
+    const customer = normalizeCustomer({
       id: crypto.randomUUID(),
       name: input.name.trim(),
       email,
       phone: input.phone.trim(),
+      cep: input.cep.trim(),
+      street: input.street.trim(),
+      neighborhood: input.neighborhood.trim(),
       city: input.city.trim(),
+      state: input.state.trim(),
       accountType: input.accountType,
       password: input.password,
-    }
+    })
 
-    window.localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify([...customers, customer]))
+    writeStoredCustomers([...customers, customer])
 
-    const nextUser: SessionUser = {
-      id: customer.id,
-      name: customer.name,
-      email: customer.email,
-      phone: customer.phone,
-      city: customer.city,
-      accountType: customer.accountType,
-      role: 'customer',
-    }
+    const nextUser = toSessionUser(customer)
 
     setUser(nextUser)
     setAdminVerified(false)

@@ -43,6 +43,13 @@ Configure os canais públicos sem editar código:
 Se `VITE_WHATSAPP_NUMBER` estiver vazio, a interface usa o Instagram como canal
 principal e não exibe número falso.
 
+## Clientes e endereços
+
+O cadastro coleta telefone, CEP, rua, bairro, cidade e UF. O formulário tenta
+preencher o endereço pelo CEP e mantém edição manual como fallback. No MVP, os
+clientes ficam em localStorage e o painel administrativo lista esses cadastros
+com busca por nome, e-mail, telefone ou CEP.
+
 ## Login administrativo
 
 O admin entra pela mesma tela de login, mas a senha é validada em
@@ -54,12 +61,32 @@ O admin entra pela mesma tela de login, mas a senha é validada em
 
 Não coloque senha real em variáveis `VITE_`.
 
+## Secrets pelo painel admin
+
+O painel administrativo pode salvar secrets privados na Vercel por meio de
+`/api/admin-secret`. Para ativar esse fluxo, configure uma vez na Vercel:
+
+- `VERCEL_API_TOKEN`: token privado com permissão para editar variáveis do projeto.
+- `VERCEL_TARGET_PROJECT_ID`: `jccogumelos` ou o `prj_...` do projeto.
+- `VERCEL_TARGET_TEAM_ID`: obrigatório se o token precisar operar dentro do time.
+- `VERCEL_REDEPLOY_HOOK_URL`: opcional; se existir, o painel dispara um novo deploy depois de salvar.
+
+Secrets aceitos pelo painel:
+
+- `MERCADO_PAGO_ACCESS_TOKEN`
+- `OPENAI_API_KEY`
+
+Esses valores não são salvos em localStorage e não usam prefixo `VITE_`.
+
 ## Josaninha com GPT
 
 A assistente usa a função `api/josaninha.js` para chamar a OpenAI Responses API
 no servidor. Configure `OPENAI_API_KEY` no ambiente de deploy e, se quiser
 trocar o modelo, ajuste `OPENAI_MODEL`. A chave da OpenAI não deve usar prefixo
 `VITE_`, porque ela nunca deve ser enviada para o navegador.
+
+Também é possível colar a chave GPT no painel admin em Configurações. O painel
+salva em `OPENAI_API_KEY` na Vercel usando o endpoint protegido acima.
 
 Sem `OPENAI_API_KEY`, o chat não simula respostas automáticas: ele avisa que a
 conexão GPT precisa ser configurada no servidor.
@@ -75,7 +102,8 @@ modelo Checkout Transparente do Mercado Pago. Configure na Vercel:
 - `MERCADO_PAGO_WEBHOOK_SECRET`: chave secreta do webhook, opcional mas recomendada.
 
 O Access Token não deve ser salvo no painel administrativo nem em variável
-`VITE_`. O painel apenas mostra a configuração operacional e o webhook.
+`VITE_`. O campo do painel envia o valor para `MERCADO_PAGO_ACCESS_TOKEN` na
+Vercel e limpa o campo após salvar.
 
 ## Scripts
 

@@ -50,9 +50,27 @@ export interface CustomerProfile {
   fullName: string
   email: string
   phone: string
+  cep: string
+  street: string
+  neighborhood: string
   city: string
+  state: string
   accountType: AccountType
   loyaltyPoints: number
+}
+
+export interface RegisteredCustomer {
+  id: string
+  name: string
+  email: string
+  phone: string
+  cep: string
+  street: string
+  neighborhood: string
+  city: string
+  state: string
+  accountType: AccountType
+  createdAt: string
 }
 
 export interface Order {
@@ -156,7 +174,11 @@ export interface SessionUser {
   name: string
   email: string
   phone: string
+  cep: string
+  street: string
+  neighborhood: string
   city: string
+  state: string
   accountType: AccountType
   role: UserRole
   adminToken?: string

@@ -87,6 +87,18 @@ interface MercadoPagoResponsePayload {
   }>
 }
 
+interface VercelEnvResponsePayload {
+  message?: string
+  error?: {
+    message?: string
+  }
+  failed?: Array<{
+    error?: {
+      message?: string
+    }
+  }>
+}
+
 const josaninhaInstructions = `
 Voce e a Josaninha, assistente virtual da JC Cogumelos.
 Responda sempre em portugues do Brasil, com tom sofisticado, acolhedor e objetivo.
@@ -110,6 +122,134 @@ function sendJson(response: ServerResponse, status: number, body: unknown) {
   response.statusCode = status
   response.setHeader('Content-Type', 'application/json')
   response.end(JSON.stringify(body))
+}
+
+const allowedAdminSecrets = {
+  MERCADO_PAGO_ACCESS_TOKEN: {
+    label: 'Access Token Mercado Pago',
+    validate(value: string) {
+      return value.trim().length >= 30
+    },
+  },
+  OPENAI_API_KEY: {
+    label: 'Chave GPT / OpenAI',
+    validate(value: string) {
+      const token = value.trim()
+      return token.startsWith('sk-') && token.length >= 40
+    },
+  },
+}
+
+type AllowedAdminSecretKey = keyof typeof allowedAdminSecrets
+
+function isAllowedAdminSecretKey(key: string): key is AllowedAdminSecretKey {
+  return key in allowedAdminSecrets
+}
+
+function getVercelProjectId(env: Record<string, string>) {
+  return (
+    env.VERCEL_TARGET_PROJECT_ID ||
+    env.VERCEL_PROJECT_ID ||
+    env.VERCEL_PROJECT_NAME ||
+    'jccogumelos'
+  ).trim()
+}
+
+function getVercelTeamId(env: Record<string, string>) {
+  return (
+    env.VERCEL_TARGET_TEAM_ID ||
+    env.VERCEL_TEAM_ID ||
+    env.VERCEL_ORG_ID ||
+    ''
+  ).trim()
+}
+
+async function upsertVercelSecret(
+  env: Record<string, string>,
+  key: AllowedAdminSecretKey,
+  value: string,
+) {
+  const vercelToken = env.VERCEL_API_TOKEN?.trim()
+  const projectId = getVercelProjectId(env)
+  const teamId = getVercelTeamId(env)
+
+  if (!vercelToken) {
+    return {
+      status: 503,
+      body: {
+        code: 'missing_vercel_api_token',
+        error: 'Configure VERCEL_API_TOKEN na Vercel para salvar secrets pelo painel.',
+      },
+    }
+  }
+
+  if (!projectId) {
+    return {
+      status: 503,
+      body: {
+        code: 'missing_vercel_project_id',
+        error: 'Configure VERCEL_PROJECT_ID ou VERCEL_TARGET_PROJECT_ID.',
+      },
+    }
+  }
+
+  const url = new URL(
+    `https://api.vercel.com/v10/projects/${encodeURIComponent(projectId)}/env`,
+  )
+  url.searchParams.set('upsert', 'true')
+
+  if (teamId) {
+    url.searchParams.set('teamId', teamId)
+  }
+
+  const vercelResponse = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${vercelToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      key,
+      value,
+      type: 'sensitive',
+      target: ['production'],
+      comment: `${allowedAdminSecrets[key].label} salvo pelo painel administrativo da JC Cogumelos.`,
+    }),
+  })
+  const data = (await vercelResponse.json()) as VercelEnvResponsePayload
+
+  if (!vercelResponse.ok || data.failed?.length) {
+    const firstFailure = data.failed?.[0]?.error
+    return {
+      status: vercelResponse.ok ? 400 : vercelResponse.status,
+      body: {
+        error:
+          firstFailure?.message ||
+          data.error?.message ||
+          data.message ||
+          'A Vercel recusou a atualização do secret.',
+      },
+    }
+  }
+
+  let redeploy = 'not_configured'
+  const redeployHookUrl = env.VERCEL_REDEPLOY_HOOK_URL?.trim()
+
+  if (redeployHookUrl) {
+    const redeployResponse = await fetch(redeployHookUrl, { method: 'POST' })
+    redeploy = redeployResponse.ok ? 'triggered' : 'failed'
+  }
+
+  return {
+    status: 200,
+    body: {
+      ok: true,
+      key,
+      label: allowedAdminSecrets[key].label,
+      target: 'production',
+      redeploy,
+    },
+  }
 }
 
 function getHeader(request: IncomingMessage, name: string) {
@@ -757,6 +897,61 @@ function localApiPlugin(env: Record<string, string>): Plugin {
           })
         } catch {
           sendJson(response, 401, { error: 'Sessao administrativa invalida' })
+        }
+      })
+
+      server.middlewares.use('/api/admin-secret', async (request, response) => {
+        if (request.method !== 'POST') {
+          sendJson(response, 405, { error: 'Metodo nao permitido' })
+          return
+        }
+
+        if (!adminEmail || !adminPasswordHash) {
+          sendJson(response, 503, { error: 'Admin nao configurado' })
+          return
+        }
+
+        try {
+          const body = JSON.parse(await readBody(request)) as {
+            adminToken?: string
+            key?: string
+            value?: string
+          }
+          const adminToken =
+            body.adminToken ||
+            String(request.headers.authorization || '').replace(/^Bearer\s+/i, '')
+          const session = verifyAdminToken(
+            adminToken,
+            adminEmail,
+            getAdminSecret(adminEmail, adminPasswordHash, env),
+          )
+
+          if (!session) {
+            sendJson(response, 401, { error: 'Sessao administrativa invalida' })
+            return
+          }
+
+          const key = String(body.key || '').trim()
+          const value = String(body.value || '').trim()
+
+          if (!isAllowedAdminSecretKey(key)) {
+            sendJson(response, 400, { error: 'Secret nao permitido.' })
+            return
+          }
+
+          if (!allowedAdminSecrets[key].validate(value)) {
+            sendJson(response, 400, {
+              error: `Informe um valor valido para ${allowedAdminSecrets[key].label}.`,
+            })
+            return
+          }
+
+          const result = await upsertVercelSecret(env, key, value)
+          sendJson(response, result.status, result.body)
+        } catch (error) {
+          sendJson(response, 500, {
+            error: error instanceof Error ? error.message : 'Nao foi possivel salvar o secret.',
+          })
         }
       })
 
