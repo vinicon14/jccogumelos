@@ -939,7 +939,7 @@ function resolveAiConfig(env: Record<string, string>): AiConfig {
     provider: (env.AI_PROVIDER_NAME || 'OpenAI').trim(),
     endpoint,
     mode: inferAiMode(endpoint, env.AI_API_MODE || env.OPENAI_API_MODE),
-    model: (env.AI_MODEL || env.OPENAI_MODEL || 'gpt-5.2').trim(),
+    model: (env.AI_MODEL || env.OPENAI_MODEL || 'gpt-4o').trim(),
     apiKey: (env.AI_API_KEY || env.OPENAI_API_KEY || '').trim(),
   }
 }

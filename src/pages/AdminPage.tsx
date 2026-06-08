@@ -162,7 +162,7 @@ const assistantApiPresets: Array<{
     config: {
       provider: 'OpenAI',
       endpoint: 'https://api.openai.com/v1/responses',
-      model: 'gpt-5.2',
+      model: 'gpt-4o',
       mode: 'responses',
     },
   },
@@ -2261,7 +2261,7 @@ export function AdminPage() {
               Modelo
               <input
                 value={settings.assistantApi.model}
-                placeholder="gpt-5.2"
+                placeholder="gpt-4o"
                 onChange={(event) => updateAssistantApi({ model: event.target.value })}
               />
             </label>

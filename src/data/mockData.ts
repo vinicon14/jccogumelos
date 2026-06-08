@@ -215,7 +215,7 @@ export const storeSettings: StoreSettings = {
   assistantApi: {
     provider: 'OpenAI',
     endpoint: 'https://api.openai.com/v1/responses',
-    model: 'gpt-5.2',
+    model: 'gpt-4o',
     mode: 'responses',
   },
   businessHours: '',

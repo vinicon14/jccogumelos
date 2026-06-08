@@ -1,4 +1,4 @@
-const defaultModel = 'gpt-5.2'
+const defaultModel = 'gpt-4o'
 const defaultEndpoint = 'https://api.openai.com/v1/responses'
 const validModes = new Set(['responses', 'chat_completions', 'gemini', 'generic_json'])
 
