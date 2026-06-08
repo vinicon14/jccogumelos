@@ -11,6 +11,8 @@ import type {
   WholesalePreorder,
 } from '../types'
 
+export type PersistenceStatus = 'idle' | 'saving' | 'saved' | 'local_only' | 'error'
+
 export interface StoreContextValue {
   products: Product[]
   subscriptionPlans: SubscriptionPlan[]
@@ -21,6 +23,10 @@ export interface StoreContextValue {
   blogPosts: BlogPost[]
   notifications: StoreNotification[]
   settings: StoreSettings
+  persistenceStatus: PersistenceStatus
+  lastPersistedAt: string
+  persistenceMessage: string
+  saveStoreNow: () => Promise<boolean>
   setProducts: (products: Product[]) => void
   setSubscriptionPlans: (plans: SubscriptionPlan[]) => void
   setCustomerSubscriptions: (subscriptions: CustomerSubscription[]) => void

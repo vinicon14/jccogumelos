@@ -2965,3 +2965,67 @@ button:disabled,
     width: 100%;
   }
 }
+
+.admin-save-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.9rem;
+  border: 1px solid rgba(54, 48, 40, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.76);
+  padding: 0.74rem;
+  box-shadow: 0 12px 30px rgba(32, 27, 23, 0.055);
+}
+
+.admin-save-bar > div {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.admin-save-bar strong {
+  color: #201b17;
+  font-size: 0.86rem;
+  font-weight: 1000;
+}
+
+.admin-save-bar span {
+  color: #6a6258;
+  font-size: 0.76rem;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.admin-save-bar.saved {
+  border-color: rgba(35, 61, 47, 0.2);
+  background: rgba(239, 247, 239, 0.78);
+}
+
+.admin-save-bar.local_only {
+  border-color: rgba(201, 83, 36, 0.24);
+  background: rgba(255, 246, 235, 0.82);
+}
+
+.admin-save-bar.error {
+  border-color: rgba(157, 45, 27, 0.24);
+  background: rgba(255, 241, 238, 0.84);
+}
+
+.admin-save-button {
+  flex: 0 0 auto;
+  min-height: 2.45rem;
+  padding: 0.55rem 0.9rem;
+}
+
+@media (max-width: 640px) {
+  .admin-save-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-save-button {
+    width: 100%;
+    justify-content: center;
+  }
+}

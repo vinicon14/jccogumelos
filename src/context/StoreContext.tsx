@@ -34,7 +34,7 @@ import {
   subscribeRemotePayload,
 } from '../services/remotePersistence'
 import { withOrderAutoCancellation } from '../utils/orders'
-import { StoreContext } from './storeContextValue'
+import { StoreContext, type PersistenceStatus } from './storeContextValue'
 
 const STORE_STORAGE_KEY = 'jc-cogumelos-store-v1'
 const STORE_REMOTE_ID = 'store'
@@ -323,14 +323,24 @@ function persistState(state: StoredState) {
   if (typeof window !== 'undefined') {
     try {
       window.localStorage.setItem(STORE_STORAGE_KEY, JSON.stringify(state))
+      return true
     } catch (error) {
       console.warn('Não foi possível salvar todos os dados locais.', error)
+      return false
     }
   }
+
+  return false
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<StoredState>(readStoredState)
+  const [persistenceStatus, setPersistenceStatus] =
+    useState<PersistenceStatus>('idle')
+  const [lastPersistedAt, setLastPersistedAt] = useState('')
+  const [persistenceMessage, setPersistenceMessage] = useState(
+    'Alterações ainda não salvas nesta sessão.',
+  )
   const stateRef = useRef(state)
   const remoteSaveTimer = useRef<number | undefined>(undefined)
 
@@ -338,12 +348,50 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     stateRef.current = state
   }, [state])
 
-  const queueRemoteSave = useCallback((nextState: StoredState) => {
-    window.clearTimeout(remoteSaveTimer.current)
-    remoteSaveTimer.current = window.setTimeout(() => {
-      void saveRemotePayload(STORE_REMOTE_ID, nextState)
-    }, 500)
-  }, [])
+  const persistRemoteNow = useCallback(
+    async (nextState: StoredState, manual = false) => {
+      const localSaved = persistState(nextState)
+
+      setPersistenceStatus('saving')
+      setPersistenceMessage(
+        manual ? 'Salvando alterações no banco...' : 'Salvando automaticamente...',
+      )
+
+      const remoteSaved = await saveRemotePayload(STORE_REMOTE_ID, nextState)
+      const now = new Date().toISOString()
+
+      if (remoteSaved) {
+        setPersistenceStatus('saved')
+        setLastPersistedAt(now)
+        setPersistenceMessage('Alterações salvas no banco de dados.')
+        return true
+      }
+
+      if (localSaved) {
+        setPersistenceStatus('local_only')
+        setLastPersistedAt(now)
+        setPersistenceMessage(
+          'Salvo neste aparelho. A tabela app_state do Supabase precisa estar ativa para sincronizar.',
+        )
+        return false
+      }
+
+      setPersistenceStatus('error')
+      setPersistenceMessage('Não foi possível salvar. Verifique o armazenamento do navegador.')
+      return false
+    },
+    [],
+  )
+
+  const queueRemoteSave = useCallback(
+    (nextState: StoredState) => {
+      window.clearTimeout(remoteSaveTimer.current)
+      remoteSaveTimer.current = window.setTimeout(() => {
+        void persistRemoteNow(nextState)
+      }, 700)
+    },
+    [persistRemoteNow],
+  )
 
   const persistEverywhere = useCallback(
     (nextState: StoredState) => {
@@ -361,9 +409,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     })
   }, [persistEverywhere])
 
+  const saveStoreNow = useCallback(async () => {
+    window.clearTimeout(remoteSaveTimer.current)
+    return persistRemoteNow(stateRef.current, true)
+  }, [persistRemoteNow])
+
   const value = useMemo(
     () => ({
       ...state,
+      persistenceStatus,
+      lastPersistedAt,
+      persistenceMessage,
+      saveStoreNow,
       setProducts: (products: Product[]) => updateState({ products }),
       setSubscriptionPlans: (subscriptionPlans: SubscriptionPlan[]) =>
         updateState({ subscriptionPlans }),
@@ -382,7 +439,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             typeof settings === 'function' ? settings(state.settings) : settings,
         }),
     }),
-    [state, updateState],
+    [
+      lastPersistedAt,
+      persistenceMessage,
+      persistenceStatus,
+      saveStoreNow,
+      state,
+      updateState,
+    ],
   )
 
   useEffect(() => {
@@ -417,11 +481,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const nextState = normalizeState(remoteState)
         persistState(nextState)
         setState(nextState)
+        setPersistenceStatus('saved')
+        setLastPersistedAt(new Date().toISOString())
+        setPersistenceMessage('Dados carregados do banco.')
         return
       }
 
       if (seedIfEmpty) {
-        void saveRemotePayload(STORE_REMOTE_ID, stateRef.current)
+        void persistRemoteNow(stateRef.current)
       }
     }
 
@@ -433,6 +500,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const nextState = normalizeState(remoteState)
         persistState(nextState)
         setState(nextState)
+        setPersistenceStatus('saved')
+        setLastPersistedAt(new Date().toISOString())
+        setPersistenceMessage('Dados sincronizados do banco.')
       },
     )
 
@@ -448,7 +518,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('focus', handleFocus)
       unsubscribe()
     }
-  }, [])
+  }, [persistRemoteNow])
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
 }

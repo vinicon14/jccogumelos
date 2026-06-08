@@ -162,6 +162,10 @@ export function AdminPage() {
     blogPosts,
     notifications,
     settings,
+    persistenceStatus,
+    lastPersistedAt,
+    persistenceMessage,
+    saveStoreNow,
     setProducts,
     setSubscriptionPlans,
     setCustomerSubscriptions,
@@ -600,6 +604,24 @@ export function AdminPage() {
   const mercadoPagoReady =
     settings.paymentGateway.enabled &&
     settings.paymentGateway.provider.toLowerCase().includes('mercado')
+  const isStoreSaving = persistenceStatus === 'saving'
+  const saveStatusLabel =
+    persistenceStatus === 'saved'
+      ? 'Salvo'
+      : persistenceStatus === 'local_only'
+        ? 'Salvo localmente'
+        : persistenceStatus === 'error'
+          ? 'Erro ao salvar'
+          : persistenceStatus === 'saving'
+            ? 'Salvando'
+            : 'Aguardando'
+  const lastSavedLabel = lastPersistedAt
+    ? new Intl.DateTimeFormat('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }).format(new Date(lastPersistedAt))
+    : ''
 
   return (
     <section className="page-shell">
@@ -610,6 +632,25 @@ export function AdminPage() {
           Área protegida para editar produtos, fotos, valores, planos,
           configurações e publicações.
         </p>
+      </div>
+
+      <div className={`admin-save-bar ${persistenceStatus}`}>
+        <div>
+          <strong>{saveStatusLabel}</strong>
+          <span>
+            {persistenceMessage}
+            {lastSavedLabel ? ` Último salvamento: ${lastSavedLabel}.` : ''}
+          </span>
+        </div>
+        <button
+          className="primary-button admin-save-button"
+          type="button"
+          disabled={isStoreSaving}
+          onClick={() => void saveStoreNow()}
+        >
+          <Save size={17} />
+          {isStoreSaving ? 'Salvando...' : 'Salvar alterações'}
+        </button>
       </div>
 
       <div className="dashboard-cards">
