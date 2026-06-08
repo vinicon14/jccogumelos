@@ -151,6 +151,34 @@ function createPostMedia(url = '', mediaType: BlogMedia['mediaType'] = 'image'):
   }
 }
 
+const assistantApiPresets: Array<{
+  label: string
+  description: string
+  config: AssistantApiConfig
+}> = [
+  {
+    label: 'OpenAI',
+    description: 'Responses API',
+    config: {
+      provider: 'OpenAI',
+      endpoint: 'https://api.openai.com/v1/responses',
+      model: 'gpt-5.2',
+      mode: 'responses',
+    },
+  },
+  {
+    label: 'Gemini',
+    description: 'Google AI Studio',
+    config: {
+      provider: 'Gemini',
+      endpoint:
+        'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
+      model: 'gemini-2.5-flash',
+      mode: 'gemini',
+    },
+  },
+]
+
 export function AdminPage() {
   const { user } = useAuth()
   const {
@@ -2077,15 +2105,29 @@ export function AdminPage() {
               <KeyRound size={18} />
               <div>
                 <h3>API da Josaninha</h3>
-                <p>Use OpenAI ou outro endpoint compatível com IA por API.</p>
+                <p>Use OpenAI, Gemini ou outro endpoint compatível com IA por API.</p>
               </div>
+            </div>
+            <div className="assistant-preset-row" aria-label="Preconfigurações de IA">
+              {assistantApiPresets.map((preset) => (
+                <button
+                  className="secondary-button"
+                  type="button"
+                  key={preset.label}
+                  onClick={() => updateAssistantApi(preset.config)}
+                >
+                  <KeyRound size={15} />
+                  {preset.label}
+                  <small>{preset.description}</small>
+                </button>
+              ))}
             </div>
             <div className="admin-field-row compact">
               <label className="field-label">
                 Provedor
                 <input
                   value={settings.assistantApi.provider}
-                  placeholder="OpenAI, OpenRouter, DeepSeek..."
+                  placeholder="OpenAI, Gemini, OpenRouter..."
                   onChange={(event) =>
                     updateAssistantApi({ provider: event.target.value })
                   }
@@ -2103,6 +2145,7 @@ export function AdminPage() {
                 >
                   <option value="responses">Responses API</option>
                   <option value="chat_completions">Chat Completions</option>
+                  <option value="gemini">Gemini GenerateContent</option>
                   <option value="generic_json">JSON genérico</option>
                 </select>
               </label>
@@ -2117,7 +2160,7 @@ export function AdminPage() {
                 }
               />
               <span className="field-hint">
-                Cole o endpoint completo da API. Para OpenRouter e similares, use o endpoint de chat completions.
+                Para Gemini, use generateContent e mantenha {'{model}'} na URL se quiser trocar modelos pelo campo abaixo.
               </span>
             </label>
             <label className="field-label">
@@ -2160,7 +2203,7 @@ export function AdminPage() {
               <p className="form-error">{secretError}</p>
             )}
             <p className="field-hint">
-              Compatível com APIs no formato OpenAI Responses, Chat Completions ou JSON simples.
+              Compatível com OpenAI Responses, Chat Completions, Gemini GenerateContent ou JSON simples.
             </p>
           </div>
 

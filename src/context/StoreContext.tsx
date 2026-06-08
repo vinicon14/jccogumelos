@@ -75,7 +75,12 @@ const validOrderStatuses = new Set([
 const validSubscriptionStatuses = new Set(['ativa', 'pausada', 'cancelada'])
 validSubscriptionStatuses.add('aguardando_pagamento')
 const validSubscriptionCadences = new Set(['semanal', 'quinzenal', 'mensal'])
-const validAssistantApiModes = new Set(['responses', 'chat_completions', 'generic_json'])
+const validAssistantApiModes = new Set([
+  'responses',
+  'chat_completions',
+  'gemini',
+  'generic_json',
+])
 const validWholesaleQueueStatuses = new Set([
   'na_fila',
   'em_producao',

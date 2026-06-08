@@ -1,6 +1,6 @@
 const defaultModel = 'gpt-5.2'
 const defaultEndpoint = 'https://api.openai.com/v1/responses'
-const validModes = new Set(['responses', 'chat_completions', 'generic_json'])
+const validModes = new Set(['responses', 'chat_completions', 'gemini', 'generic_json'])
 
 const instructions = `
 Voce e a Josaninha, assistente virtual da JC Cogumelos.
@@ -115,6 +115,17 @@ function extractOutputText(data) {
       .trim()
   }
 
+  if (Array.isArray(data.candidates)) {
+    return data.candidates
+      .flatMap((candidate) =>
+        Array.isArray(candidate.content?.parts) ? candidate.content.parts : [],
+      )
+      .map((part) => part.text || '')
+      .filter(Boolean)
+      .join('\n')
+      .trim()
+  }
+
   if (!Array.isArray(data.output)) {
     return ''
   }
@@ -156,6 +167,10 @@ function inferMode(endpoint, configuredMode) {
     return 'responses'
   }
 
+  if (/generativelanguage\.googleapis\.com|:generateContent$/i.test(endpoint)) {
+    return 'gemini'
+  }
+
   return 'generic_json'
 }
 
@@ -174,6 +189,19 @@ function resolveAiConfig() {
     model: (process.env.AI_MODEL || process.env.OPENAI_MODEL || defaultModel).trim(),
     apiKey: (process.env.AI_API_KEY || process.env.OPENAI_API_KEY || '').trim(),
   }
+}
+
+function resolveProviderEndpoint(config) {
+  if (
+    config.mode === 'gemini' &&
+    (config.endpoint.includes('{model}') || /%7Bmodel%7D/i.test(config.endpoint))
+  ) {
+    return config.endpoint
+      .replaceAll('{model}', encodeURIComponent(config.model))
+      .replace(/%7Bmodel%7D/gi, encodeURIComponent(config.model))
+  }
+
+  return config.endpoint
 }
 
 function buildRequestPayload({ config, input, message, history, storeContext }) {
@@ -213,6 +241,50 @@ function buildRequestPayload({ config, input, message, history, storeContext }) 
     }
   }
 
+  if (config.mode === 'gemini') {
+    const systemContext = [
+      instructions,
+      storeContext
+        ? `Contexto atual da loja para responder com precisão:\n${storeContext}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join('\n\n')
+
+    return {
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {
+              text: systemContext,
+            },
+          ],
+        },
+        ...history.map((item) => ({
+          role: item.role === 'assistant' ? 'model' : 'user',
+          parts: [
+            {
+              text: item.content,
+            },
+          ],
+        })),
+        {
+          role: 'user',
+          parts: [
+            {
+              text: message.slice(0, 1200),
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        maxOutputTokens: 420,
+        temperature: 0.6,
+      },
+    }
+  }
+
   return {
     model: config.model,
     instructions,
@@ -232,7 +304,7 @@ function classifyProviderError(status, data) {
     data.text ||
     'Falha ao gerar resposta'
   const code = providerError.code || providerError.type || data.code || ''
-  const errorText = `${code} ${message}`
+  const errorText = `${code} ${providerError.status || ''} ${message}`
 
   if (status === 401 || status === 403) {
     return {
@@ -305,10 +377,12 @@ export default async function handler(request, response) {
       },
     ]
 
-    const providerResponse = await fetch(config.endpoint, {
+    const providerResponse = await fetch(resolveProviderEndpoint(config), {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${config.apiKey}`,
+        ...(config.mode === 'gemini'
+          ? { 'x-goog-api-key': config.apiKey }
+          : { Authorization: `Bearer ${config.apiKey}` }),
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(

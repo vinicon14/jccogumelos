@@ -153,8 +153,18 @@ configurar qualquer provedor compatível com API de IA via:
 - `AI_API_KEY`: chave privada do provedor.
 - `AI_API_ENDPOINT`: endpoint completo, como `https://api.openai.com/v1/responses`.
 - `AI_MODEL`: modelo usado pela Josaninha.
-- `AI_API_MODE`: `responses`, `chat_completions` ou `generic_json`.
+- `AI_API_MODE`: `responses`, `chat_completions`, `gemini` ou `generic_json`.
 - `AI_PROVIDER_NAME`: nome exibido/administrativo do provedor.
+
+O painel tem presets para OpenAI e Gemini. O preset Gemini usa:
+
+- `AI_PROVIDER_NAME=Gemini`
+- `AI_API_ENDPOINT=https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`
+- `AI_API_MODE=gemini`
+- `AI_MODEL=gemini-2.5-flash`
+
+No modo Gemini, a função envia a chave pelo header `x-goog-api-key`, como exige
+a API oficial do Google AI Studio, e troca `{model}` pelo valor de `AI_MODEL`.
 
 O endpoint mantém compatibilidade com `OPENAI_API_KEY` e `OPENAI_MODEL`, mas usa
 `AI_API_KEY` e `AI_MODEL` primeiro. Essas chaves nunca devem usar prefixo

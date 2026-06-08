@@ -10,6 +10,13 @@ interface OpenAIResponsePayload {
   text?: string
   message?: string
   code?: string
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{
+        text?: string
+      }>
+    }
+  }>
   choices?: Array<{
     text?: string
     message?: {
@@ -29,6 +36,7 @@ interface OpenAIResponsePayload {
     message?: string
     code?: string
     type?: string
+    status?: string
   }
 }
 
@@ -143,7 +151,12 @@ function sendJson(response: ServerResponse, status: number, body: unknown) {
   response.end(JSON.stringify(body))
 }
 
-const validAiModes = new Set(['responses', 'chat_completions', 'generic_json'])
+const validAiModes = new Set([
+  'responses',
+  'chat_completions',
+  'gemini',
+  'generic_json',
+])
 
 const allowedAdminSecrets = {
   MERCADO_PAGO_ACCESS_TOKEN: {
@@ -772,6 +785,15 @@ function extractOutputText(data: OpenAIResponsePayload) {
       .trim()
   }
 
+  if (Array.isArray(data.candidates)) {
+    return data.candidates
+      .flatMap((candidate) => candidate.content?.parts ?? [])
+      .map((part) => part.text || '')
+      .filter(Boolean)
+      .join('\n')
+      .trim()
+  }
+
   if (!Array.isArray(data.output)) {
     return ''
   }
@@ -860,7 +882,7 @@ function formatStoreContext(context: unknown) {
     .slice(0, 5000)
 }
 
-type AiMode = 'responses' | 'chat_completions' | 'generic_json'
+type AiMode = 'responses' | 'chat_completions' | 'gemini' | 'generic_json'
 
 interface AiConfig {
   provider: string
@@ -899,6 +921,10 @@ function inferAiMode(endpoint: string, configuredMode?: string): AiMode {
     return 'responses'
   }
 
+  if (/generativelanguage\.googleapis\.com|:generateContent$/i.test(endpoint)) {
+    return 'gemini'
+  }
+
   return 'generic_json'
 }
 
@@ -916,6 +942,19 @@ function resolveAiConfig(env: Record<string, string>): AiConfig {
     model: (env.AI_MODEL || env.OPENAI_MODEL || 'gpt-5.2').trim(),
     apiKey: (env.AI_API_KEY || env.OPENAI_API_KEY || '').trim(),
   }
+}
+
+function resolveProviderEndpoint(config: AiConfig) {
+  if (
+    config.mode === 'gemini' &&
+    (config.endpoint.includes('{model}') || /%7Bmodel%7D/i.test(config.endpoint))
+  ) {
+    return config.endpoint
+      .replaceAll('{model}', encodeURIComponent(config.model))
+      .replace(/%7Bmodel%7D/gi, encodeURIComponent(config.model))
+  }
+
+  return config.endpoint
 }
 
 function buildAiRequestPayload({
@@ -967,6 +1006,50 @@ function buildAiRequestPayload({
     }
   }
 
+  if (config.mode === 'gemini') {
+    const systemContext = [
+      josaninhaInstructions,
+      storeContext
+        ? `Contexto atual da loja para responder com precisão:\n${storeContext}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join('\n\n')
+
+    return {
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {
+              text: systemContext,
+            },
+          ],
+        },
+        ...history.map((item) => ({
+          role: item.role === 'assistant' ? 'model' : 'user',
+          parts: [
+            {
+              text: item.content,
+            },
+          ],
+        })),
+        {
+          role: 'user',
+          parts: [
+            {
+              text: message.slice(0, 1200),
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        maxOutputTokens: 420,
+        temperature: 0.6,
+      },
+    }
+  }
+
   return {
     model: config.model,
     instructions: josaninhaInstructions,
@@ -985,7 +1068,7 @@ function classifyAiError(status: number, data: OpenAIResponsePayload) {
     data.text ||
     'Falha ao gerar resposta'
   const code = providerError?.code || providerError?.type || data.code || ''
-  const errorText = `${code} ${message}`
+  const errorText = `${code} ${providerError?.status || ''} ${message}`
 
   if (status === 401 || status === 403) {
     return { code: 'ai_auth_failed', error: message }
@@ -1044,10 +1127,12 @@ async function generateJosaninhaReply(env: Record<string, string>, body: string)
     },
   ]
 
-  const providerResponse = await fetch(config.endpoint, {
+  const providerResponse = await fetch(resolveProviderEndpoint(config), {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${config.apiKey}`,
+      ...(config.mode === 'gemini'
+        ? { 'x-goog-api-key': config.apiKey }
+        : { Authorization: `Bearer ${config.apiKey}` }),
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(

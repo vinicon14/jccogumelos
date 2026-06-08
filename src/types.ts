@@ -230,7 +230,11 @@ export interface PaymentIntent {
   rawStatus?: string | null
 }
 
-export type AssistantApiMode = 'responses' | 'chat_completions' | 'generic_json'
+export type AssistantApiMode =
+  | 'responses'
+  | 'chat_completions'
+  | 'gemini'
+  | 'generic_json'
 
 export interface AssistantApiConfig {
   provider: string

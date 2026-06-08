@@ -2587,6 +2587,33 @@ button:disabled,
   padding: 0.7rem;
 }
 
+.assistant-preset-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.admin-edit-section .assistant-preset-row .secondary-button {
+  min-height: 2.35rem;
+  justify-content: center;
+  gap: 0.34rem;
+  padding: 0.45rem 0.55rem;
+  font-size: 0.76rem;
+}
+
+.assistant-preset-row small {
+  color: inherit;
+  font-size: 0.62rem;
+  font-weight: 900;
+  opacity: 0.72;
+}
+
+@media (max-width: 430px) {
+  .assistant-preset-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .payment-preview {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;

@@ -1,6 +1,11 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 
-const validAiModes = new Set(['responses', 'chat_completions', 'generic_json'])
+const validAiModes = new Set([
+  'responses',
+  'chat_completions',
+  'gemini',
+  'generic_json',
+])
 
 const allowedSecrets = {
   MERCADO_PAGO_ACCESS_TOKEN: {
