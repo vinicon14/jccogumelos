@@ -34,6 +34,10 @@ import {
   subscribeRemotePayload,
 } from '../services/remotePersistence'
 import { withOrderAutoCancellation } from '../utils/orders'
+import {
+  activateSubscriptionForPaidOrder,
+  expireSubscriptionIfNeeded,
+} from '../utils/subscriptions'
 import { StoreContext, type PersistenceStatus } from './storeContextValue'
 
 const STORE_STORAGE_KEY = 'jc-cogumelos-store-v1'
@@ -72,7 +76,7 @@ const validOrderStatuses = new Set([
   'cancelado',
 ])
 
-const validSubscriptionStatuses = new Set(['ativa', 'pausada', 'cancelada'])
+const validSubscriptionStatuses = new Set(['ativa', 'pausada', 'vencida', 'cancelada'])
 validSubscriptionStatuses.add('aguardando_pagamento')
 const validSubscriptionCadences = new Set(['semanal', 'quinzenal', 'mensal'])
 const validAssistantApiModes = new Set([
@@ -124,38 +128,51 @@ function normalizeOrder(order: Partial<Order>): Order {
 
 function syncSubscriptionPaymentState(state: StoredState): StoredState {
   let changed = false
-  const orderBySubscriptionId = new Map(
-    state.orders
-      .filter((order) => order.orderKind === 'subscription' && order.subscriptionId)
-      .map((order) => [order.subscriptionId, order]),
+  const orderBySubscriptionId = new Map<string, Order>()
+  const subscriptionOrders = state.orders
+    .filter((order) => order.orderKind === 'subscription' && order.subscriptionId)
+    .sort(
+      (a, b) =>
+        Date.parse(b.createdAt || '') - Date.parse(a.createdAt || ''),
   )
+
+  subscriptionOrders.forEach((order) => {
+    if (order.subscriptionId && !orderBySubscriptionId.has(order.subscriptionId)) {
+      orderBySubscriptionId.set(order.subscriptionId, order)
+    }
+  })
 
   const customerSubscriptions = state.customerSubscriptions.map((subscription) => {
     const order = orderBySubscriptionId.get(subscription.id)
+    const nextSubscription = expireSubscriptionIfNeeded(subscription)
 
-    if (!order || subscription.status !== 'aguardando_pagamento') {
-      return subscription
+    if (!order || nextSubscription.status !== 'aguardando_pagamento') {
+      if (nextSubscription !== subscription) {
+        changed = true
+      }
+
+      return nextSubscription
     }
 
     if (order.status === 'pago') {
       changed = true
-      return {
-        ...subscription,
-        status: 'ativa' as CustomerSubscription['status'],
-        lastUpdatedAt: order.updatedAt || new Date().toISOString(),
-      }
+      return activateSubscriptionForPaidOrder(nextSubscription, order)
     }
 
     if (order.status === 'cancelado') {
+      const nextStatus: CustomerSubscription['status'] = nextSubscription.expiresAt
+        ? 'vencida'
+        : 'cancelada'
+
       changed = true
       return {
-        ...subscription,
-        status: 'cancelada' as CustomerSubscription['status'],
+        ...nextSubscription,
+        status: nextStatus,
         lastUpdatedAt: order.updatedAt || new Date().toISOString(),
       }
     }
 
-    return subscription
+    return nextSubscription
   })
 
   return changed ? { ...state, customerSubscriptions } : state
@@ -185,6 +202,7 @@ function normalizeSubscription(subscription: Partial<CustomerSubscription>): Cus
     deliveryAddress: asText(subscription.deliveryAddress) || 'Endereço não cadastrado',
     createdAt,
     nextDeliveryAt: asText(subscription.nextDeliveryAt) || createdAt,
+    expiresAt: asText(subscription.expiresAt),
     lastUpdatedAt: asText(subscription.lastUpdatedAt) || createdAt,
   }
 }
@@ -469,12 +487,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const interval = window.setInterval(() => {
       setState((current) => {
         const orders = withOrderAutoCancellation(current.orders)
+        const stateWithOrders = orders === current.orders ? current : { ...current, orders }
+        const nextState = syncSubscriptionPaymentState(stateWithOrders)
 
-        if (orders === current.orders) {
+        if (nextState === current) {
           return current
         }
 
-        const nextState = syncSubscriptionPaymentState({ ...current, orders })
         persistEverywhere(nextState)
         return nextState
       })

@@ -1,14 +1,19 @@
 import { CreditCard, QrCode, TimerReset } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { QRCodeSVG } from 'qrcode.react'
 import { MediaPreview } from '../components/MediaPreview'
 import { useAuth } from '../context/useAuth'
 import { useCart } from '../context/useCart'
 import { useStore } from '../context/useStore'
-import type { PaymentIntent, PaymentMethod } from '../types'
+import type { PaymentIntent, PaymentMethod, Product } from '../types'
 import { formatCep, formatCustomerAddress } from '../utils/customers'
 import { formatCurrency } from '../utils/format'
-import { createOrderStatusEntry, PAYMENT_TIMEOUT_MS } from '../utils/orders'
+import {
+  createOrderStatusEntry,
+  orderBelongsToUser,
+  PAYMENT_TIMEOUT_MS,
+} from '../utils/orders'
 import { buildPixPayload } from '../utils/payment'
 
 const paymentOptions: Array<{ value: PaymentMethod; label: string; icon: typeof QrCode }> = [
@@ -26,8 +31,17 @@ const statuses = [
   'Pedido entregue',
 ]
 
+type CheckoutSummaryItem = {
+  id: string
+  name: string
+  quantity: number
+  subtotal: number
+  product?: Product
+}
+
 export function CheckoutPage() {
   const { user } = useAuth()
+  const [searchParams] = useSearchParams()
   const { lines, subtotal, clearCart } = useCart()
   const { orders, notifications, products, settings, setOrders, setNotifications, setProducts } =
     useStore()
@@ -37,8 +51,22 @@ export function CheckoutPage() {
   const [paymentIntent, setPaymentIntent] = useState<PaymentIntent | null>(null)
   const [paymentError, setPaymentError] = useState('')
   const [paymentLoading, setPaymentLoading] = useState(false)
+  const paymentOrderId = searchParams.get('order') || ''
+  const subscriptionCheckoutOrder = useMemo(
+    () =>
+      orders.find(
+        (order) =>
+          order.id === paymentOrderId &&
+          order.orderKind === 'subscription' &&
+          orderBelongsToUser(order, user),
+      ),
+    [orders, paymentOrderId, user],
+  )
+  const isSubscriptionCheckout = Boolean(subscriptionCheckoutOrder)
+  const hasUnknownSubscriptionCheckout = Boolean(paymentOrderId) && !subscriptionCheckoutOrder
   const total = subtotal > 0 ? subtotal + settings.shippingBase : 0
-  const displayTotal = createdOrderTotal || total
+  const displayTotal = createdOrderTotal || subscriptionCheckoutOrder?.total || total
+  const effectiveOrderId = createdOrderId || subscriptionCheckoutOrder?.id || ''
   const availablePaymentOptions = useMemo(
     () =>
       paymentOptions.filter((option) => {
@@ -54,10 +82,34 @@ export function CheckoutPage() {
   const pixPayload = buildPixPayload({
     config: settings.paymentGateway,
     amount: displayTotal,
-    orderId: createdOrderId || 'PREVIEW',
+    orderId: effectiveOrderId || 'PREVIEW',
   })
+  const checkoutItems: CheckoutSummaryItem[] = isSubscriptionCheckout
+    ? (subscriptionCheckoutOrder?.items ?? []).map((itemName) => ({
+        id: itemName,
+        name: itemName,
+        quantity: 1,
+        subtotal: subscriptionCheckoutOrder?.total ?? 0,
+      }))
+    : lines.map((line) => ({
+        id: line.product.id,
+        name: line.product.name,
+        quantity: line.quantity,
+        subtotal: line.subtotal,
+        product: line.product,
+      }))
+  const canConfirmPayment =
+    Boolean(subscriptionCheckoutOrder) || lines.length > 0
+  const isExistingOrderPayable =
+    !subscriptionCheckoutOrder ||
+    subscriptionCheckoutOrder.status === 'aguardando_pagamento'
 
-  async function createMercadoPagoPix(orderId: string, orderTotal: number) {
+  async function createMercadoPagoPix(
+    orderId: string,
+    orderTotal: number,
+    items: Array<{ id: string; name: string; quantity: number; unitPrice: number }>,
+    description = `Pedido ${orderId} - JC Cogumelos`,
+  ) {
     const response = await fetch('/api/mercado-pago-pix', {
       method: 'POST',
       headers: {
@@ -66,19 +118,14 @@ export function CheckoutPage() {
       body: JSON.stringify({
         orderId,
         amount: orderTotal,
-        description: `Pedido ${orderId} - JC Cogumelos`,
+        description,
         expirationMinutes: settings.paymentGateway.pixExpirationMinutes,
         idempotencyKey: `${orderId}-${Math.round(orderTotal * 100)}`,
         customer: {
           name: user?.name,
           email: user?.email,
         },
-        items: lines.map((line) => ({
-          id: line.product.id,
-          name: line.product.name,
-          quantity: line.quantity,
-          unitPrice: line.product.price,
-        })),
+        items,
       }),
     })
     const data = (await response.json()) as {
@@ -100,17 +147,18 @@ export function CheckoutPage() {
   }
 
   async function createOrder() {
-    if (!user || lines.length === 0 || createdOrderId) {
+    if (!user || !canConfirmPayment || createdOrderId || !isExistingOrderPayable) {
       return
     }
 
     setPaymentError('')
     setPaymentLoading(true)
 
-    const orderId = `JC-${Date.now().toString().slice(-6)}`
-    const orderTotal = total
     const createdAt = new Date()
     const createdAtIso = createdAt.toISOString()
+    const orderId =
+      subscriptionCheckoutOrder?.id || `JC-${createdAt.getTime().toString().slice(-6)}`
+    const orderTotal = subscriptionCheckoutOrder?.total || total
     const paymentExpiresAt = new Date(
       createdAt.getTime() + PAYMENT_TIMEOUT_MS,
     ).toISOString()
@@ -119,7 +167,26 @@ export function CheckoutPage() {
     try {
       if (selectedMethod === 'pix') {
         if (settings.paymentGateway.enabled) {
-          nextPaymentIntent = await createMercadoPagoPix(orderId, orderTotal)
+          nextPaymentIntent = await createMercadoPagoPix(
+            orderId,
+            orderTotal,
+            isSubscriptionCheckout
+              ? checkoutItems.map((item) => ({
+                  id: item.id,
+                  name: item.name,
+                  quantity: item.quantity,
+                  unitPrice: orderTotal,
+                }))
+              : lines.map((line) => ({
+                  id: line.product.id,
+                  name: line.product.name,
+                  quantity: line.quantity,
+                  unitPrice: line.product.price,
+                })),
+            isSubscriptionCheckout
+              ? `Assinatura ${subscriptionCheckoutOrder?.id} - JC Cogumelos`
+              : `Pedido ${orderId} - JC Cogumelos`,
+          )
         } else if (settings.paymentGateway.fallbackQrEnabled) {
           nextPaymentIntent = {
             provider: 'local',
@@ -144,6 +211,26 @@ export function CheckoutPage() {
           ? error.message
           : 'Não foi possível iniciar o pagamento.',
       )
+      setPaymentLoading(false)
+      return
+    }
+
+    if (subscriptionCheckoutOrder) {
+      setOrders(
+        orders.map((order) =>
+          order.id === subscriptionCheckoutOrder.id
+            ? {
+                ...order,
+                paymentMethod: selectedMethod,
+                paymentExpiresAt: order.paymentExpiresAt || paymentExpiresAt,
+                updatedAt: createdAtIso,
+              }
+            : order,
+        ),
+      )
+      setCreatedOrderTotal(orderTotal)
+      setCreatedOrderId(orderId)
+      setPaymentIntent(nextPaymentIntent)
       setPaymentLoading(false)
       return
     }
@@ -213,10 +300,11 @@ export function CheckoutPage() {
     <section className="page-shell">
       <div className="page-heading">
         <p className="eyebrow">Checkout</p>
-        <h1>Finalizar pedido</h1>
+        <h1>{isSubscriptionCheckout ? 'Pagar assinatura' : 'Finalizar pedido'}</h1>
         <p>
-          Pagamento Pix com QR Code e acompanhamento do pedido na área do
-          cliente.
+          {isSubscriptionCheckout
+            ? 'Finalize o pagamento para ativar ou renovar o período da assinatura.'
+            : 'Pagamento Pix com QR Code e acompanhamento do pedido na área do cliente.'}
         </p>
       </div>
 
@@ -257,11 +345,13 @@ export function CheckoutPage() {
                 <strong>
                   {paymentIntent
                     ? 'Pix gerado para este pedido.'
-                    : 'Confirme o pedido para gerar o Pix.'}
+                    : isSubscriptionCheckout
+                      ? 'Gere o Pix para ativar a assinatura.'
+                      : 'Confirme o pedido para gerar o Pix.'}
                 </strong>
                 <p>
-                  {createdOrderId
-                    ? `Pedido ${createdOrderId} · ${formatCurrency(displayTotal)}`
+                  {effectiveOrderId
+                    ? `Pedido ${effectiveOrderId} · ${formatCurrency(displayTotal)}`
                     : `Pagamento seguro · ${formatCurrency(displayTotal)}`}
                 </p>
                 {paymentIntent?.ticketUrl && (
@@ -294,19 +384,21 @@ export function CheckoutPage() {
 
         <aside className="summary-panel">
           <h2>Status do pedido</h2>
-          {lines.length > 0 && (
+          {checkoutItems.length > 0 && (
             <div className="checkout-items">
-              {lines.map((line) => (
-                <article className="checkout-item" key={line.product.id}>
-                  <MediaPreview
-                    src={line.product.image}
-                    alt={line.product.name}
-                    mediaType={line.product.mediaType}
-                  />
+              {checkoutItems.map((item) => (
+                <article className="checkout-item" key={item.id}>
+                  {item.product && (
+                    <MediaPreview
+                      src={item.product.image}
+                      alt={item.product.name}
+                      mediaType={item.product.mediaType}
+                    />
+                  )}
                   <div>
-                    <strong>{line.product.name}</strong>
+                    <strong>{item.name}</strong>
                     <span>
-                      {line.quantity}x · {formatCurrency(line.subtotal)}
+                      {item.quantity}x · {formatCurrency(item.subtotal)}
                     </span>
                   </div>
                 </article>
@@ -324,8 +416,9 @@ export function CheckoutPage() {
           <div className="timer-card">
             <TimerReset size={22} />
             <p>
-              O pedido fica aguardando pagamento por 5 minutos. Depois disso, é
-              cancelado automaticamente.
+              {isSubscriptionCheckout
+                ? 'A assinatura só fica ativa depois do pagamento e vence ao fim da cadência escolhida.'
+                : 'O pedido fica aguardando pagamento por 5 minutos. Depois disso, é cancelado automaticamente.'}
             </p>
           </div>
           <div className="summary-total">
@@ -336,14 +429,31 @@ export function CheckoutPage() {
             className="primary-button justify-center"
             type="button"
             onClick={createOrder}
-            disabled={lines.length === 0 || Boolean(createdOrderId) || paymentLoading}
+            disabled={
+              !canConfirmPayment ||
+              !isExistingOrderPayable ||
+              Boolean(createdOrderId) ||
+              paymentLoading
+            }
           >
             {paymentLoading
               ? 'Gerando Pix...'
               : createdOrderId
                 ? `Pedido ${createdOrderId} criado`
-                : 'Confirmar pedido'}
+                : isSubscriptionCheckout
+                  ? 'Gerar Pix da assinatura'
+                  : 'Confirmar pedido'}
           </button>
+          {subscriptionCheckoutOrder && !isExistingOrderPayable && (
+            <p className="form-error">
+              Este pedido de assinatura não está mais aguardando pagamento.
+            </p>
+          )}
+          {hasUnknownSubscriptionCheckout && lines.length === 0 && (
+            <p className="form-error">
+              Pedido de assinatura não encontrado para esta conta.
+            </p>
+          )}
         </aside>
       </div>
     </section>

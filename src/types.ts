@@ -15,6 +15,7 @@ export type SubscriptionStatus =
   | 'aguardando_pagamento'
   | 'ativa'
   | 'pausada'
+  | 'vencida'
   | 'cancelada'
 export type WholesaleQueueStatus =
   | 'na_fila'
@@ -135,6 +136,7 @@ export interface CustomerSubscription {
   deliveryAddress: string
   createdAt: string
   nextDeliveryAt: string
+  expiresAt: string
   lastUpdatedAt: string
 }
 

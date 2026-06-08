@@ -14,6 +14,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { MediaPreview } from '../components/MediaPreview'
 import { useAuth } from '../context/useAuth'
 import { useStore } from '../context/useStore'
@@ -31,6 +32,7 @@ import {
   createCustomerSubscription,
   createSubscriptionPaymentOrder,
   isActiveSubscription,
+  markSubscriptionAwaitingRenewal,
   subscriptionStatusLabels,
 } from '../utils/subscriptions'
 import type { SubscriptionStatus, WholesaleQueueStatus } from '../types'
@@ -43,6 +45,7 @@ import {
 
 export function AccountPage() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [now, setNow] = useState(0)
   const {
     orders,
@@ -58,11 +61,15 @@ export function AccountPage() {
   } = useStore()
   const productByName = new Map(products.map((product) => [product.name, product]))
   const userOrders = orders.filter((order) => orderBelongsToUser(order, user))
-  const subscriptionOrderById = new Map(
-    userOrders
-      .filter((order) => order.subscriptionId)
-      .map((order) => [order.subscriptionId, order]),
-  )
+  const subscriptionOrderById = new Map<string, (typeof userOrders)[number]>()
+  userOrders
+    .filter((order) => order.subscriptionId)
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+    .forEach((order) => {
+      if (order.subscriptionId && !subscriptionOrderById.has(order.subscriptionId)) {
+        subscriptionOrderById.set(order.subscriptionId, order)
+      }
+    })
   const userSubscriptions = customerSubscriptions.filter(
     (subscription) => subscription.customerId === user?.id,
   )
@@ -84,16 +91,63 @@ export function AccountPage() {
     }
 
     const plan = subscriptionPlans.find((item) => item.id === planId)
+    if (!plan) {
+      return
+    }
+
+    const existingSubscription = customerSubscriptions.find(
+      (subscription) =>
+        subscription.customerId === user.id &&
+        subscription.planId === planId &&
+        subscription.status !== 'cancelada',
+    )
+    const pendingPaymentOrder = existingSubscription
+      ? userOrders
+          .filter(
+            (order) =>
+              order.subscriptionId === existingSubscription.id &&
+              order.status === 'aguardando_pagamento',
+          )
+          .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0]
+      : undefined
+
+    if (existingSubscription?.status === 'aguardando_pagamento' && pendingPaymentOrder) {
+      navigate(`/checkout?order=${pendingPaymentOrder.id}`)
+      return
+    }
+
     if (
-      !plan ||
+      existingSubscription &&
+      existingSubscription.status !== 'vencida' &&
+      existingSubscription.status !== 'aguardando_pagamento'
+    ) {
+      return
+    }
+
+    if (
+      !existingSubscription &&
       !canSubscribeToPlan({ subscriptions: customerSubscriptions, planId, userId: user.id })
     ) {
       return
     }
 
-    const subscription = createCustomerSubscription({ plan, user })
+    const subscription = existingSubscription
+      ? markSubscriptionAwaitingRenewal({
+          ...existingSubscription,
+          cadence: plan.cadence,
+          price: plan.price,
+          planName: plan.name,
+        })
+      : createCustomerSubscription({ plan, user })
     const paymentOrder = createSubscriptionPaymentOrder({ subscription, plan, user })
-    setCustomerSubscriptions([subscription, ...customerSubscriptions])
+
+    setCustomerSubscriptions(
+      existingSubscription
+        ? customerSubscriptions.map((item) =>
+            item.id === subscription.id ? subscription : item,
+          )
+        : [subscription, ...customerSubscriptions],
+    )
     setOrders([paymentOrder, ...orders])
     setNotifications([
       {
@@ -112,10 +166,11 @@ export function AccountPage() {
         message: `Pague o pedido ${paymentOrder.id} para ativar ${plan.name}.`,
         createdAt: new Date().toISOString(),
         read: false,
-        link: '/conta',
+        link: `/checkout?order=${paymentOrder.id}`,
       },
       ...notifications,
     ])
+    navigate(`/checkout?order=${paymentOrder.id}`)
   }
 
   function updateSubscriptionStatus(id: string, status: SubscriptionStatus) {
@@ -337,12 +392,45 @@ export function AccountPage() {
                           {paymentOrder ? ` no pedido ${paymentOrder.id}` : ''}
                         </span>
                       )}
+                      {subscription.status !== 'aguardando_pagamento' &&
+                        subscription.expiresAt && (
+                          <span>
+                            <CalendarClock size={16} />
+                            Validade: {formatDate(subscription.expiresAt)}
+                          </span>
+                        )}
+                      {subscription.status === 'vencida' && (
+                        <span>
+                          <XCircle size={16} />
+                          Assinatura vencida. Renove para continuar o plano.
+                        </span>
+                      )}
                       <span>
                         <MapPin size={16} />
                         {subscription.deliveryAddress}
                       </span>
                     </div>
                     <div className="subscription-actions">
+                      {subscription.status === 'aguardando_pagamento' && paymentOrder && (
+                        <button
+                          className="secondary-button"
+                          type="button"
+                          onClick={() => navigate(`/checkout?order=${paymentOrder.id}`)}
+                        >
+                          <CalendarClock size={16} />
+                          Pagar agora
+                        </button>
+                      )}
+                      {subscription.status === 'vencida' && (
+                        <button
+                          className="secondary-button"
+                          type="button"
+                          onClick={() => subscribeToPlan(subscription.planId)}
+                        >
+                          <PlayCircle size={16} />
+                          Renovar
+                        </button>
+                      )}
                       {subscription.status === 'ativa' && (
                         <button
                           className="secondary-button"
@@ -363,7 +451,8 @@ export function AccountPage() {
                           Reativar
                         </button>
                       )}
-                      {subscription.status !== 'cancelada' && (
+                      {subscription.status !== 'cancelada' &&
+                        subscription.status !== 'vencida' && (
                         <button
                           className="secondary-button danger"
                           type="button"
@@ -497,10 +586,15 @@ export function AccountPage() {
                       userId: user.id,
                     }),
                 )
+                const canPayOrRenew =
+                  existingSubscription?.status === 'aguardando_pagamento' ||
+                  existingSubscription?.status === 'vencida'
                 const actionLabel = existingSubscription
                   ? existingSubscription.status === 'aguardando_pagamento'
-                    ? 'Aguardando pagamento'
-                    : 'Já ativo'
+                    ? 'Pagar assinatura'
+                    : existingSubscription.status === 'vencida'
+                      ? 'Renovar'
+                      : 'Já ativo'
                   : 'Assinar'
 
                 return (
@@ -511,10 +605,10 @@ export function AccountPage() {
                     <button
                       className="secondary-button plan-action-button"
                       type="button"
-                      disabled={!canSubscribe}
+                      disabled={!canSubscribe && !canPayOrRenew}
                       onClick={() => subscribeToPlan(plan.id)}
                     >
-                      {canSubscribe ? 'Assinar' : actionLabel}
+                      {existingSubscription ? actionLabel : 'Assinar'}
                     </button>
                   </article>
                 )

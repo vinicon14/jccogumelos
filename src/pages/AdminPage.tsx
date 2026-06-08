@@ -51,7 +51,7 @@ import {
   readStoredCustomers,
   readSyncedCustomers,
 } from '../utils/customers'
-import { formatCurrency } from '../utils/format'
+import { formatCurrency, formatDate } from '../utils/format'
 import { inferMediaType, readMediaFile } from '../utils/media'
 import { isOrderVisibleInAdmin, withOrderStatus } from '../utils/orders'
 import { subscriptionStatusLabels } from '../utils/subscriptions'
@@ -1420,6 +1420,13 @@ export function AdminPage() {
                     <CalendarClock size={15} />
                     Próxima entrega: {subscription.nextDeliveryAt.slice(0, 10)}
                   </span>
+                  <span>
+                    <CalendarClock size={15} />
+                    Validade:{' '}
+                    {subscription.expiresAt
+                      ? formatDate(subscription.expiresAt)
+                      : 'Aguardando pagamento'}
+                  </span>
                 </div>
                 <div className="admin-field-row compact">
                   <label className="field-label">
@@ -1475,6 +1482,18 @@ export function AdminPage() {
                       onChange={(event) =>
                         updateCustomerSubscription(subscription.id, {
                           nextDeliveryAt: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="field-label">
+                    Validade
+                    <input
+                      type="date"
+                      value={subscription.expiresAt.slice(0, 10)}
+                      onChange={(event) =>
+                        updateCustomerSubscription(subscription.id, {
+                          expiresAt: event.target.value,
                         })
                       }
                     />

@@ -9,7 +9,7 @@ import {
   Truck,
   Camera,
 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useEffect } from 'react'
 import { BlogMediaGallery } from '../components/BlogMediaGallery'
 import { ProductCard } from '../components/ProductCard'
@@ -22,6 +22,7 @@ import {
   canSubscribeToPlan,
   createCustomerSubscription,
   createSubscriptionPaymentOrder,
+  markSubscriptionAwaitingRenewal,
 } from '../utils/subscriptions'
 import { buildWhatsAppUrl, markWhatsAppSiteEntry } from '../utils/whatsapp'
 
@@ -54,6 +55,7 @@ const benefits = [
 
 export function HomePage({ focus }: HomePageProps) {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const {
     products,
     subscriptionPlans,
@@ -89,13 +91,63 @@ export function HomePage({ focus }: HomePageProps) {
     }
 
     const plan = subscriptionPlans.find((item) => item.id === planId)
-    if (!plan || !canSubscribeToPlan({ subscriptions: customerSubscriptions, planId, userId: user.id })) {
+    if (!plan) {
       return
     }
 
-    const subscription = createCustomerSubscription({ plan, user })
+    const existingSubscription = customerSubscriptions.find(
+      (subscription) =>
+        subscription.customerId === user.id &&
+        subscription.planId === planId &&
+        subscription.status !== 'cancelada',
+    )
+    const pendingPaymentOrder = existingSubscription
+      ? orders
+          .filter(
+            (order) =>
+              order.subscriptionId === existingSubscription.id &&
+              order.status === 'aguardando_pagamento',
+          )
+          .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0]
+      : undefined
+
+    if (existingSubscription?.status === 'aguardando_pagamento' && pendingPaymentOrder) {
+      navigate(`/checkout?order=${pendingPaymentOrder.id}`)
+      return
+    }
+
+    if (
+      existingSubscription &&
+      existingSubscription.status !== 'vencida' &&
+      existingSubscription.status !== 'aguardando_pagamento'
+    ) {
+      return
+    }
+
+    if (
+      !existingSubscription &&
+      !canSubscribeToPlan({ subscriptions: customerSubscriptions, planId, userId: user.id })
+    ) {
+      return
+    }
+
+    const subscription = existingSubscription
+      ? markSubscriptionAwaitingRenewal({
+          ...existingSubscription,
+          cadence: plan.cadence,
+          price: plan.price,
+          planName: plan.name,
+        })
+      : createCustomerSubscription({ plan, user })
     const paymentOrder = createSubscriptionPaymentOrder({ subscription, plan, user })
-    setCustomerSubscriptions([subscription, ...customerSubscriptions])
+
+    setCustomerSubscriptions(
+      existingSubscription
+        ? customerSubscriptions.map((item) =>
+            item.id === subscription.id ? subscription : item,
+          )
+        : [subscription, ...customerSubscriptions],
+    )
     setOrders([paymentOrder, ...orders])
     setNotifications([
       {
@@ -114,10 +166,11 @@ export function HomePage({ focus }: HomePageProps) {
         message: `Pague o pedido ${paymentOrder.id} para ativar ${plan.name}.`,
         createdAt: new Date().toISOString(),
         read: false,
-        link: '/conta',
+        link: `/checkout?order=${paymentOrder.id}`,
       },
       ...notifications,
     ])
+    navigate(`/checkout?order=${paymentOrder.id}`)
   }
 
   return (
@@ -239,10 +292,15 @@ export function HomePage({ focus }: HomePageProps) {
                       userId: user.id,
                     }),
                 )
+                const canPayOrRenew =
+                  existingSubscription?.status === 'aguardando_pagamento' ||
+                  existingSubscription?.status === 'vencida'
                 const actionLabel = existingSubscription
                   ? existingSubscription.status === 'aguardando_pagamento'
-                    ? 'Aguardando pagamento'
-                    : 'Plano já ativo'
+                    ? 'Pagar assinatura'
+                    : existingSubscription.status === 'vencida'
+                      ? 'Renovar plano'
+                      : 'Plano já ativo'
                   : 'Assinar plano'
 
               return (
@@ -254,10 +312,10 @@ export function HomePage({ focus }: HomePageProps) {
                   <button
                     className="secondary-button plan-action-button"
                     type="button"
-                    disabled={!canSubscribe}
+                    disabled={!canSubscribe && !canPayOrRenew}
                     onClick={() => handleSubscribe(plan.id)}
                   >
-                    {canSubscribe ? 'Assinar plano' : actionLabel}
+                    {existingSubscription ? actionLabel : 'Assinar plano'}
                   </button>
                 </article>
               )
