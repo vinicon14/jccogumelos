@@ -1,12 +1,15 @@
 import type {
   CustomerSubscription,
+  Order,
   SessionUser,
   SubscriptionPlan,
   SubscriptionStatus,
 } from '../types'
 import { formatCep, formatCustomerAddress } from './customers'
+import { createOrderStatusEntry, PAYMENT_TIMEOUT_MS } from './orders'
 
 export const subscriptionStatusLabels: Record<SubscriptionStatus, string> = {
+  aguardando_pagamento: 'Aguardando pagamento',
   ativa: 'Ativa',
   pausada: 'Pausada',
   cancelada: 'Cancelada',
@@ -39,7 +42,7 @@ export function createCustomerSubscription({
     planName: plan.name,
     cadence: plan.cadence,
     price: plan.price,
-    status: 'ativa',
+    status: 'aguardando_pagamento',
     customerId: user.id,
     customerName: user.name,
     customerEmail: user.email,
@@ -58,8 +61,46 @@ export function createCustomerSubscription({
   }
 }
 
+export function createSubscriptionPaymentOrder({
+  subscription,
+  plan,
+  user,
+}: {
+  subscription: CustomerSubscription
+  plan: SubscriptionPlan
+  user: SessionUser
+}): Order {
+  const createdAt = new Date()
+  const createdAtIso = createdAt.toISOString()
+  const paymentExpiresAt = new Date(createdAt.getTime() + PAYMENT_TIMEOUT_MS).toISOString()
+
+  return {
+    id: `JC-AS-${Date.now().toString().slice(-6)}`,
+    orderKind: 'subscription',
+    subscriptionId: subscription.id,
+    customerId: user.id,
+    customerName: user.name,
+    customerEmail: user.email,
+    customerPhone: user.phone,
+    deliveryCep: subscription.deliveryCep,
+    deliveryAddress: subscription.deliveryAddress,
+    status: 'aguardando_pagamento',
+    total: plan.price,
+    createdAt: createdAtIso,
+    updatedAt: createdAtIso,
+    paymentMethod: 'pix',
+    paymentExpiresAt,
+    statusHistory: [createOrderStatusEntry('aguardando_pagamento', createdAtIso)],
+    items: [`Assinatura ${plan.name}`],
+  }
+}
+
 export function isActiveSubscription(subscription: CustomerSubscription) {
   return subscription.status === 'ativa' || subscription.status === 'pausada'
+}
+
+export function isOpenSubscription(subscription: CustomerSubscription) {
+  return subscription.status !== 'cancelada'
 }
 
 export function canSubscribeToPlan({
@@ -75,6 +116,6 @@ export function canSubscribeToPlan({
     (subscription) =>
       subscription.customerId === userId &&
       subscription.planId === planId &&
-      isActiveSubscription(subscription),
+      isOpenSubscription(subscription),
   )
 }

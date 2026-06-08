@@ -91,7 +91,7 @@ export default async function handler(request, response) {
 
   const signature = verifyMercadoPagoSignature(request)
   if (!signature.valid) {
-    response.status(401).json({ error: 'Webhook Mercado Pago invalido' })
+    response.status(401).json({ error: 'Webhook de pagamento invalido' })
     return
   }
 
@@ -108,6 +108,6 @@ export default async function handler(request, response) {
       dataId,
     })
   } catch {
-    response.status(400).json({ error: 'Webhook Mercado Pago invalido' })
+    response.status(400).json({ error: 'Webhook de pagamento invalido' })
   }
 }

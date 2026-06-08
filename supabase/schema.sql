@@ -56,6 +56,8 @@ create table public.products (
 create table public.orders (
   id uuid primary key default gen_random_uuid(),
   order_code text unique,
+  order_kind text not null default 'product',
+  subscription_id uuid,
   profile_id uuid references public.profiles(id) on delete set null,
   customer_name text not null,
   customer_email text not null default '',
@@ -113,6 +115,10 @@ create table public.subscriptions (
   created_at timestamptz not null default now(),
   last_updated_at timestamptz not null default now()
 );
+
+alter table public.orders
+  add constraint orders_subscription_id_fkey
+  foreign key (subscription_id) references public.subscriptions(id) on delete set null;
 
 create table public.loyalty_events (
   id uuid primary key default gen_random_uuid(),

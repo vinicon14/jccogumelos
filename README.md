@@ -62,9 +62,13 @@ No painel administrativo, a gestão de pedidos mostra apenas pedidos ativos:
 `enviado`, `entregue` ou `cancelado`, o pedido sai da fila de gestão, mas
 continua no acompanhamento do cliente.
 
-As assinaturas podem ser criadas pelo cliente nas áreas de assinatura e ficam
-editáveis no admin, com status, cadência, valor, próxima entrega e dados do
-assinante.
+As assinaturas criadas pelo cliente entram como `aguardando_pagamento` e geram
+um pedido de cobrança. O plano só vira `ativa` quando o pedido relacionado é
+marcado como `pago`; se esse pedido expirar ou for cancelado, a assinatura vira
+`cancelada`.
+
+No painel administrativo, assinaturas canceladas saem da gestão operacional. O
+cliente ainda consegue ver o histórico da própria assinatura em Minha conta.
 
 ## Login administrativo
 

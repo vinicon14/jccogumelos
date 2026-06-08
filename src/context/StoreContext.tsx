@@ -55,6 +55,7 @@ const validOrderStatuses = new Set([
 ])
 
 const validSubscriptionStatuses = new Set(['ativa', 'pausada', 'cancelada'])
+validSubscriptionStatuses.add('aguardando_pagamento')
 const validSubscriptionCadences = new Set(['semanal', 'quinzenal', 'mensal'])
 
 function asText(value: unknown) {
@@ -69,6 +70,8 @@ function normalizeOrder(order: Partial<Order>): Order {
 
   return {
     id: asText(order.id) || `JC-${Date.now().toString().slice(-6)}`,
+    orderKind: order.orderKind === 'subscription' ? 'subscription' : 'product',
+    subscriptionId: asText(order.subscriptionId),
     customerId: asText(order.customerId),
     customerName: asText(order.customerName) || 'Cliente',
     customerEmail: asText(order.customerEmail),
@@ -86,6 +89,45 @@ function normalizeOrder(order: Partial<Order>): Order {
     statusHistory: Array.isArray(order.statusHistory) ? order.statusHistory : [],
     items: Array.isArray(order.items) ? order.items.map(String) : [],
   }
+}
+
+function syncSubscriptionPaymentState(state: StoredState): StoredState {
+  let changed = false
+  const orderBySubscriptionId = new Map(
+    state.orders
+      .filter((order) => order.orderKind === 'subscription' && order.subscriptionId)
+      .map((order) => [order.subscriptionId, order]),
+  )
+
+  const customerSubscriptions = state.customerSubscriptions.map((subscription) => {
+    const order = orderBySubscriptionId.get(subscription.id)
+
+    if (!order || subscription.status !== 'aguardando_pagamento') {
+      return subscription
+    }
+
+    if (order.status === 'pago') {
+      changed = true
+      return {
+        ...subscription,
+        status: 'ativa' as CustomerSubscription['status'],
+        lastUpdatedAt: order.updatedAt || new Date().toISOString(),
+      }
+    }
+
+    if (order.status === 'cancelado') {
+      changed = true
+      return {
+        ...subscription,
+        status: 'cancelada' as CustomerSubscription['status'],
+        lastUpdatedAt: order.updatedAt || new Date().toISOString(),
+      }
+    }
+
+    return subscription
+  })
+
+  return changed ? { ...state, customerSubscriptions } : state
 }
 
 function normalizeSubscription(subscription: Partial<CustomerSubscription>): CustomerSubscription {
@@ -129,7 +171,7 @@ function normalizeState(state: Partial<StoredState>): StoredState {
     !incomingGateway.apiEndpoint &&
     String(incomingGateway.webhookUrl || '').includes('/api/payment-webhook')
 
-  return {
+  return syncSubscriptionPaymentState({
     ...defaultState,
     ...state,
     customerSubscriptions: (
@@ -154,7 +196,7 @@ function normalizeState(state: Partial<StoredState>): StoredState {
           }
         : mergedPaymentGateway,
     },
-  }
+  })
 }
 
 function readStoredState(): StoredState {
@@ -185,7 +227,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const updateState = useCallback((patch: Partial<StoredState>) => {
     setState((current) => {
-      const nextState = { ...current, ...patch }
+      const nextState = syncSubscriptionPaymentState({ ...current, ...patch })
       persistState(nextState)
       return nextState
     })
@@ -222,7 +264,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           return current
         }
 
-        const nextState = { ...current, orders }
+        const nextState = syncSubscriptionPaymentState({ ...current, orders })
         persistState(nextState)
         return nextState
       })

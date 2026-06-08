@@ -91,8 +91,8 @@ export function CheckoutPage() {
       throw new Error(
         data.error ||
           (data.code === 'missing_mercado_pago_access_token'
-            ? 'Configure o token Mercado Pago no servidor para gerar o Pix.'
-            : 'Não foi possível gerar o Pix Mercado Pago.'),
+            ? 'Configure a integração de pagamento no servidor para gerar o Pix.'
+            : 'Não foi possível gerar o Pix.'),
       )
     }
 
@@ -135,7 +135,7 @@ export function CheckoutPage() {
             rawStatus: 'pending',
           }
         } else {
-          throw new Error('Ative a integração Mercado Pago no painel para gerar Pix.')
+          throw new Error('Ative a integração de pagamento no painel para gerar Pix.')
         }
       }
     } catch (error) {
@@ -215,8 +215,8 @@ export function CheckoutPage() {
         <p className="eyebrow">Checkout</p>
         <h1>Finalizar pedido</h1>
         <p>
-          Pagamento Pix com QR Code Mercado Pago e acompanhamento do pedido na
-          área do cliente.
+          Pagamento Pix com QR Code e acompanhamento do pedido na área do
+          cliente.
         </p>
       </div>
 
@@ -245,7 +245,7 @@ export function CheckoutPage() {
                 {paymentIntent?.qrCodeBase64 ? (
                   <img
                     src={`data:image/jpeg;base64,${paymentIntent.qrCodeBase64}`}
-                    alt="QR Code Pix Mercado Pago"
+                    alt="QR Code Pix"
                   />
                 ) : paymentIntent?.qrCode ? (
                   <QRCodeSVG value={paymentIntent.qrCode} size={188} marginSize={2} />
@@ -256,13 +256,13 @@ export function CheckoutPage() {
               <div>
                 <strong>
                   {paymentIntent
-                    ? 'Pix Mercado Pago gerado para este pedido.'
-                    : 'Confirme o pedido para gerar o Pix Mercado Pago.'}
+                    ? 'Pix gerado para este pedido.'
+                    : 'Confirme o pedido para gerar o Pix.'}
                 </strong>
                 <p>
                   {createdOrderId
                     ? `Pedido ${createdOrderId} · ${formatCurrency(displayTotal)}`
-                    : `${settings.paymentGateway.provider} · ${formatCurrency(displayTotal)}`}
+                    : `Pagamento seguro · ${formatCurrency(displayTotal)}`}
                 </p>
                 {paymentIntent?.ticketUrl && (
                   <a

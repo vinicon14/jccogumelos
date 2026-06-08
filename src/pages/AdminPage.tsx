@@ -161,6 +161,7 @@ export function AdminPage() {
   const activeSubscriptions = customerSubscriptions.filter(
     (subscription) => subscription.status !== 'cancelada',
   )
+  const managedSubscriptions = activeSubscriptions
   const productByName = useMemo(() => {
     return new Map(products.map((product) => [product.name, product]))
   }, [products])
@@ -792,15 +793,15 @@ export function AdminPage() {
             <h2>Gestão de assinaturas</h2>
             <p>Status, entrega, valor e dados do cliente assinante.</p>
           </div>
-          <span className="admin-count-pill">{customerSubscriptions.length}</span>
+          <span className="admin-count-pill">{managedSubscriptions.length}</span>
         </div>
-        {customerSubscriptions.length === 0 ? (
+        {managedSubscriptions.length === 0 ? (
           <div className="empty-state compact">
-            <h2>Nenhuma assinatura criada ainda.</h2>
+            <h2>Nenhuma assinatura ativa ou pendente para gerenciar.</h2>
           </div>
         ) : (
           <div className="admin-subscription-grid">
-            {customerSubscriptions.map((subscription) => (
+            {managedSubscriptions.map((subscription) => (
               <article className="admin-subscription-card" key={subscription.id}>
                 <div className="admin-customer-topline">
                   <div>

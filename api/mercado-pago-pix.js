@@ -42,7 +42,7 @@ function sanitizeAmount(amount) {
 
 function createPaymentPayload(body, request) {
   const amount = sanitizeAmount(body.amount)
-  const minutes = Math.max(Number(body.expirationMinutes || 30), 30)
+  const minutes = Math.max(Number(body.expirationMinutes || 5), 5)
   const expiresAt = new Date(Date.now() + minutes * 60 * 1000).toISOString()
   const orderId = String(body.orderId || `JC-${Date.now()}`)
   const customer = body.customer || {}
@@ -74,7 +74,7 @@ function createPaymentPayload(body, request) {
 
 function createOrderPayload(body, request) {
   const amount = sanitizeAmount(body.amount)
-  const minutes = Math.max(Number(body.expirationMinutes || 30), 30)
+  const minutes = Math.max(Number(body.expirationMinutes || 5), 5)
   const orderId = String(body.orderId || `JC-${Date.now()}`)
   const customer = body.customer || {}
 
@@ -157,7 +157,7 @@ export default async function handler(request, response) {
   if (!accessToken) {
     response.status(503).json({
       code: 'missing_mercado_pago_access_token',
-      error: 'Configure MERCADO_PAGO_ACCESS_TOKEN na Vercel para gerar Pix Mercado Pago.',
+      error: 'Configure a integração de pagamento na Vercel para gerar Pix.',
     })
     return
   }
@@ -195,7 +195,7 @@ export default async function handler(request, response) {
 
     if (!mercadoPagoResponse.ok) {
       response.status(mercadoPagoResponse.status).json({
-        error: data.message || data.error || 'Mercado Pago recusou a criacao do Pix.',
+        error: 'O provedor de pagamento recusou a criacao do Pix.',
         details: data.cause || data,
       })
       return
@@ -206,7 +206,7 @@ export default async function handler(request, response) {
     })
   } catch (error) {
     response.status(500).json({
-      error: error instanceof Error ? error.message : 'Nao foi possivel gerar Pix Mercado Pago.',
+      error: 'Nao foi possivel gerar Pix.',
     })
   }
 }

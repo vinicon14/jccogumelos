@@ -20,6 +20,7 @@ import { formatCurrency } from '../utils/format'
 import {
   canSubscribeToPlan,
   createCustomerSubscription,
+  createSubscriptionPaymentOrder,
 } from '../utils/subscriptions'
 
 interface HomePageProps {
@@ -55,9 +56,11 @@ export function HomePage({ focus }: HomePageProps) {
     products,
     subscriptionPlans,
     customerSubscriptions,
+    orders,
     blogPosts,
     notifications,
     setCustomerSubscriptions,
+    setOrders,
     setNotifications,
   } = useStore()
   const featured = products.filter((product) => product.bestSeller || product.isNew).slice(0, 3)
@@ -74,13 +77,15 @@ export function HomePage({ focus }: HomePageProps) {
     }
 
     const subscription = createCustomerSubscription({ plan, user })
+    const paymentOrder = createSubscriptionPaymentOrder({ subscription, plan, user })
     setCustomerSubscriptions([subscription, ...customerSubscriptions])
+    setOrders([paymentOrder, ...orders])
     setNotifications([
       {
         id: crypto.randomUUID(),
         audience: 'admin',
-        title: 'Nova assinatura criada',
-        message: `${user.name} assinou ${plan.name}.`,
+        title: 'Nova assinatura aguardando pagamento',
+        message: `${user.name} solicitou ${plan.name}. Ative após confirmar o pagamento.`,
         createdAt: new Date().toISOString(),
         read: false,
         link: '/admin',
@@ -88,8 +93,8 @@ export function HomePage({ focus }: HomePageProps) {
       {
         id: crypto.randomUUID(),
         audience: 'customer',
-        title: 'Assinatura ativa',
-        message: `${plan.name} foi ativado para sua conta.`,
+        title: 'Pagamento da assinatura criado',
+        message: `Pague o pedido ${paymentOrder.id} para ativar ${plan.name}.`,
         createdAt: new Date().toISOString(),
         read: false,
         link: '/conta',
@@ -193,6 +198,14 @@ export function HomePage({ focus }: HomePageProps) {
           </div>
           <div className="grid gap-4 md:grid-cols-3">
             {subscriptionPlans.map((plan) => {
+                const existingSubscription = user
+                  ? customerSubscriptions.find(
+                      (subscription) =>
+                        subscription.customerId === user.id &&
+                        subscription.planId === plan.id &&
+                        subscription.status !== 'cancelada',
+                    )
+                  : undefined
                 const canSubscribe = Boolean(
                   user &&
                     canSubscribeToPlan({
@@ -201,6 +214,11 @@ export function HomePage({ focus }: HomePageProps) {
                       userId: user.id,
                     }),
                 )
+                const actionLabel = existingSubscription
+                  ? existingSubscription.status === 'aguardando_pagamento'
+                    ? 'Aguardando pagamento'
+                    : 'Plano já ativo'
+                  : 'Assinar plano'
 
               return (
                 <article className="plan-card" key={plan.id}>
@@ -214,7 +232,7 @@ export function HomePage({ focus }: HomePageProps) {
                     disabled={!canSubscribe}
                     onClick={() => handleSubscribe(plan.id)}
                   >
-                    {canSubscribe ? 'Assinar plano' : 'Plano já ativo'}
+                    {canSubscribe ? 'Assinar plano' : actionLabel}
                   </button>
                 </article>
               )

@@ -27,6 +27,8 @@ import {
 import {
   canSubscribeToPlan,
   createCustomerSubscription,
+  createSubscriptionPaymentOrder,
+  isActiveSubscription,
   subscriptionStatusLabels,
 } from '../utils/subscriptions'
 import type { SubscriptionStatus } from '../types'
@@ -42,15 +44,19 @@ export function AccountPage() {
     notifications,
     setCustomerSubscriptions,
     setNotifications,
+    setOrders,
   } = useStore()
   const productByName = new Map(products.map((product) => [product.name, product]))
   const userOrders = orders.filter((order) => orderBelongsToUser(order, user))
+  const subscriptionOrderById = new Map(
+    userOrders
+      .filter((order) => order.subscriptionId)
+      .map((order) => [order.subscriptionId, order]),
+  )
   const userSubscriptions = customerSubscriptions.filter(
     (subscription) => subscription.customerId === user?.id,
   )
-  const activeSubscriptions = userSubscriptions.filter(
-    (subscription) => subscription.status !== 'cancelada',
-  )
+  const activeSubscriptions = userSubscriptions.filter(isActiveSubscription)
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 1000)
@@ -72,16 +78,27 @@ export function AccountPage() {
     }
 
     const subscription = createCustomerSubscription({ plan, user })
+    const paymentOrder = createSubscriptionPaymentOrder({ subscription, plan, user })
     setCustomerSubscriptions([subscription, ...customerSubscriptions])
+    setOrders([paymentOrder, ...orders])
     setNotifications([
       {
         id: crypto.randomUUID(),
         audience: 'admin',
-        title: 'Nova assinatura criada',
-        message: `${user.name} assinou ${plan.name}.`,
+        title: 'Nova assinatura aguardando pagamento',
+        message: `${user.name} solicitou ${plan.name}. Ative após confirmar o pagamento.`,
         createdAt: new Date().toISOString(),
         read: false,
         link: '/admin',
+      },
+      {
+        id: crypto.randomUUID(),
+        audience: 'customer',
+        title: 'Pagamento da assinatura criado',
+        message: `Pague o pedido ${paymentOrder.id} para ativar ${plan.name}.`,
+        createdAt: new Date().toISOString(),
+        read: false,
+        link: '/conta',
       },
       ...notifications,
     ])
@@ -183,7 +200,10 @@ export function AccountPage() {
               </div>
             ) : (
               <div className="customer-order-list">
-                {userSubscriptions.map((subscription) => (
+                {userSubscriptions.map((subscription) => {
+                  const paymentOrder = subscriptionOrderById.get(subscription.id)
+
+                  return (
                   <article className="customer-order-card subscription-account-card" key={subscription.id}>
                     <div>
                       <strong>{subscription.planName}</strong>
@@ -197,6 +217,13 @@ export function AccountPage() {
                         <CalendarClock size={16} />
                         Próxima entrega: {formatDate(subscription.nextDeliveryAt)}
                       </span>
+                      {subscription.status === 'aguardando_pagamento' && (
+                        <span>
+                          <CalendarClock size={16} />
+                          Pagamento pendente
+                          {paymentOrder ? ` no pedido ${paymentOrder.id}` : ''}
+                        </span>
+                      )}
                       <span>
                         <MapPin size={16} />
                         {subscription.deliveryAddress}
@@ -235,7 +262,8 @@ export function AccountPage() {
                       )}
                     </div>
                   </article>
-                ))}
+                  )
+                })}
               </div>
             )}
           </section>
@@ -340,14 +368,27 @@ export function AccountPage() {
             <h2>Planos disponíveis</h2>
             <div className="grid gap-3 md:grid-cols-3">
               {subscriptionPlans.map((plan) => {
+                const existingSubscription = user
+                  ? customerSubscriptions.find(
+                      (subscription) =>
+                        subscription.customerId === user.id &&
+                        subscription.planId === plan.id &&
+                        subscription.status !== 'cancelada',
+                    )
+                  : undefined
                 const canSubscribe = Boolean(
                   user &&
                     canSubscribeToPlan({
-                    subscriptions: customerSubscriptions,
-                    planId: plan.id,
-                    userId: user.id,
+                      subscriptions: customerSubscriptions,
+                      planId: plan.id,
+                      userId: user.id,
                     }),
                 )
+                const actionLabel = existingSubscription
+                  ? existingSubscription.status === 'aguardando_pagamento'
+                    ? 'Aguardando pagamento'
+                    : 'Já ativo'
+                  : 'Assinar'
 
                 return (
                   <article className="mini-plan" key={plan.id}>
@@ -360,7 +401,7 @@ export function AccountPage() {
                       disabled={!canSubscribe}
                       onClick={() => subscribeToPlan(plan.id)}
                     >
-                      {canSubscribe ? 'Assinar' : 'Já ativo'}
+                      {canSubscribe ? 'Assinar' : actionLabel}
                     </button>
                   </article>
                 )

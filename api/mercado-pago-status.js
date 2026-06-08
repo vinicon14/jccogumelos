@@ -52,7 +52,7 @@ export default async function handler(request, response) {
   if (!accessToken) {
     response.status(503).json({
       code: 'missing_mercado_pago_access_token',
-      error: 'Configure MERCADO_PAGO_ACCESS_TOKEN na Vercel para consultar pagamentos.',
+      error: 'Configure a integração de pagamento na Vercel para consultar pagamentos.',
     })
     return
   }
@@ -62,7 +62,7 @@ export default async function handler(request, response) {
     const paymentId = String(body.paymentId || getQueryPaymentId(request)).trim()
 
     if (!paymentId) {
-      response.status(400).json({ error: 'Informe o paymentId do Mercado Pago.' })
+      response.status(400).json({ error: 'Informe o identificador do pagamento.' })
       return
     }
 
@@ -76,7 +76,7 @@ export default async function handler(request, response) {
 
     if (!mercadoPagoResponse.ok) {
       response.status(mercadoPagoResponse.status).json({
-        error: data.message || data.error || 'Nao foi possivel consultar o pagamento.',
+        error: 'Nao foi possivel consultar o pagamento.',
         details: data.cause || data,
       })
       return
@@ -85,7 +85,7 @@ export default async function handler(request, response) {
     response.status(200).json({ payment: parseStatus(data) })
   } catch (error) {
     response.status(500).json({
-      error: error instanceof Error ? error.message : 'Nao foi possivel consultar o pagamento.',
+      error: 'Nao foi possivel consultar o pagamento.',
     })
   }
 }

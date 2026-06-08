@@ -11,7 +11,11 @@ export type ProductCategory =
 
 export type PaymentMethod = 'pix' | 'credito' | 'debito'
 export type PaymentEnvironment = 'sandbox' | 'production'
-export type SubscriptionStatus = 'ativa' | 'pausada' | 'cancelada'
+export type SubscriptionStatus =
+  | 'aguardando_pagamento'
+  | 'ativa'
+  | 'pausada'
+  | 'cancelada'
 
 export type OrderStatus =
   | 'aguardando_pagamento'
@@ -76,6 +80,8 @@ export interface RegisteredCustomer {
 
 export interface Order {
   id: string
+  orderKind?: 'product' | 'subscription'
+  subscriptionId?: string
   customerId?: string
   customerName: string
   customerEmail?: string
