@@ -1,5 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 
+const validAiModes = new Set(['responses', 'chat_completions', 'generic_json'])
+
 const allowedSecrets = {
   MERCADO_PAGO_ACCESS_TOKEN: {
     label: 'Access Token Mercado Pago',
@@ -12,6 +14,43 @@ const allowedSecrets = {
     validate(value) {
       const token = String(value || '').trim()
       return token.startsWith('sk-') && token.length >= 40
+    },
+  },
+  AI_API_KEY: {
+    label: 'Chave da API da Josaninha',
+    validate(value) {
+      return String(value || '').trim().length >= 10
+    },
+  },
+  AI_PROVIDER_NAME: {
+    label: 'Provedor da Josaninha',
+    validate(value) {
+      const name = String(value || '').trim()
+      return name.length >= 2 && name.length <= 80
+    },
+  },
+  AI_API_ENDPOINT: {
+    label: 'Endpoint da API da Josaninha',
+    validate(value) {
+      try {
+        const url = new URL(String(value || '').trim())
+        return url.protocol === 'https:' && url.hostname.length > 3
+      } catch {
+        return false
+      }
+    },
+  },
+  AI_MODEL: {
+    label: 'Modelo da Josaninha',
+    validate(value) {
+      const model = String(value || '').trim()
+      return model.length >= 1 && model.length <= 120
+    },
+  },
+  AI_API_MODE: {
+    label: 'Modo da API da Josaninha',
+    validate(value) {
+      return validAiModes.has(String(value || '').trim())
     },
   },
   INSTAGRAM_ACCESS_TOKEN: {
@@ -88,7 +127,18 @@ function getVercelTeamId() {
   ).trim()
 }
 
-async function upsertVercelSecret(key, value) {
+async function triggerVercelRedeploy() {
+  const redeployHookUrl = process.env.VERCEL_REDEPLOY_HOOK_URL?.trim()
+
+  if (!redeployHookUrl) {
+    return 'not_configured'
+  }
+
+  const redeployResponse = await fetch(redeployHookUrl, { method: 'POST' })
+  return redeployResponse.ok ? 'triggered' : 'failed'
+}
+
+async function upsertVercelSecret(key, value, options = {}) {
   const vercelToken = process.env.VERCEL_API_TOKEN?.trim()
   const projectId = getVercelProjectId()
   const teamId = getVercelTeamId()
@@ -152,14 +202,6 @@ async function upsertVercelSecret(key, value) {
     }
   }
 
-  let redeploy = 'not_configured'
-  const redeployHookUrl = process.env.VERCEL_REDEPLOY_HOOK_URL?.trim()
-
-  if (redeployHookUrl) {
-    const redeployResponse = await fetch(redeployHookUrl, { method: 'POST' })
-    redeploy = redeployResponse.ok ? 'triggered' : 'failed'
-  }
-
   return {
     status: 200,
     body: {
@@ -167,9 +209,32 @@ async function upsertVercelSecret(key, value) {
       key,
       label: allowedSecrets[key].label,
       target: 'production',
-      redeploy,
+      redeploy: options.redeploy === false ? 'not_configured' : await triggerVercelRedeploy(),
     },
   }
+}
+
+function normalizeEntries(body) {
+  if (Array.isArray(body.entries)) {
+    return body.entries.map((entry) => ({
+      key: String(entry.key || '').trim(),
+      value: String(entry.value || '').trim(),
+    }))
+  }
+
+  if (body.secrets && typeof body.secrets === 'object') {
+    return Object.entries(body.secrets).map(([key, value]) => ({
+      key: String(key || '').trim(),
+      value: String(value || '').trim(),
+    }))
+  }
+
+  return [
+    {
+      key: String(body.key || '').trim(),
+      value: String(body.value || '').trim(),
+    },
+  ]
 }
 
 export default async function handler(request, response) {
@@ -205,22 +270,55 @@ export default async function handler(request, response) {
       return
     }
 
-    const key = String(body.key || '').trim()
-    const secret = allowedSecrets[key]
-    const value = String(body.value || '').trim()
+    const entries = normalizeEntries(body)
 
-    if (!secret) {
-      response.status(400).json({ error: 'Secret nao permitido.' })
+    if (!entries.length) {
+      response.status(400).json({ error: 'Nenhuma configuracao enviada.' })
       return
     }
 
-    if (!secret.validate(value)) {
-      response.status(400).json({ error: `Informe um valor valido para ${secret.label}.` })
-      return
+    for (const entry of entries) {
+      const secret = allowedSecrets[entry.key]
+
+      if (!secret) {
+        response.status(400).json({ error: 'Secret nao permitido.' })
+        return
+      }
+
+      if (!secret.validate(entry.value)) {
+        response.status(400).json({
+          error: `Informe um valor valido para ${secret.label}.`,
+        })
+        return
+      }
     }
 
-    const result = await upsertVercelSecret(key, value)
-    response.status(result.status).json(result.body)
+    const saved = []
+
+    for (const entry of entries) {
+      const result = await upsertVercelSecret(entry.key, entry.value, {
+        redeploy: false,
+      })
+
+      if (result.status !== 200) {
+        response.status(result.status).json(result.body)
+        return
+      }
+
+      saved.push({
+        key: entry.key,
+        label: allowedSecrets[entry.key].label,
+      })
+    }
+
+    response.status(200).json({
+      ok: true,
+      key: saved[0]?.key,
+      label: saved.length === 1 ? saved[0]?.label : `${saved.length} configurações`,
+      labels: saved.map((item) => item.label),
+      target: 'production',
+      redeploy: await triggerVercelRedeploy(),
+    })
   } catch (error) {
     response.status(500).json({
       error: error instanceof Error ? error.message : 'Nao foi possivel salvar o secret.',

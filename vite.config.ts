@@ -6,6 +6,19 @@ import tailwindcss from '@tailwindcss/vite'
 
 interface OpenAIResponsePayload {
   output_text?: string
+  reply?: string
+  text?: string
+  message?: string
+  code?: string
+  choices?: Array<{
+    text?: string
+    message?: {
+      content?: string | Array<{ text?: string; content?: string }>
+    }
+    delta?: {
+      content?: string
+    }
+  }>
   output?: Array<{
     content?: Array<{
       text?: string
@@ -14,6 +27,8 @@ interface OpenAIResponsePayload {
   }>
   error?: {
     message?: string
+    code?: string
+    type?: string
   }
 }
 
@@ -124,6 +139,8 @@ function sendJson(response: ServerResponse, status: number, body: unknown) {
   response.end(JSON.stringify(body))
 }
 
+const validAiModes = new Set(['responses', 'chat_completions', 'generic_json'])
+
 const allowedAdminSecrets = {
   MERCADO_PAGO_ACCESS_TOKEN: {
     label: 'Access Token Mercado Pago',
@@ -138,12 +155,77 @@ const allowedAdminSecrets = {
       return token.startsWith('sk-') && token.length >= 40
     },
   },
+  AI_API_KEY: {
+    label: 'Chave da API da Josaninha',
+    validate(value: string) {
+      return value.trim().length >= 10
+    },
+  },
+  AI_PROVIDER_NAME: {
+    label: 'Provedor da Josaninha',
+    validate(value: string) {
+      const name = value.trim()
+      return name.length >= 2 && name.length <= 80
+    },
+  },
+  AI_API_ENDPOINT: {
+    label: 'Endpoint da API da Josaninha',
+    validate(value: string) {
+      try {
+        const url = new URL(value.trim())
+        return url.protocol === 'https:' && url.hostname.length > 3
+      } catch {
+        return false
+      }
+    },
+  },
+  AI_MODEL: {
+    label: 'Modelo da Josaninha',
+    validate(value: string) {
+      const model = value.trim()
+      return model.length >= 1 && model.length <= 120
+    },
+  },
+  AI_API_MODE: {
+    label: 'Modo da API da Josaninha',
+    validate(value: string) {
+      return validAiModes.has(value.trim())
+    },
+  },
 }
 
 type AllowedAdminSecretKey = keyof typeof allowedAdminSecrets
 
 function isAllowedAdminSecretKey(key: string): key is AllowedAdminSecretKey {
   return key in allowedAdminSecrets
+}
+
+function normalizeAdminSecretEntries(body: {
+  key?: unknown
+  value?: unknown
+  entries?: Array<{ key?: unknown; value?: unknown }>
+  secrets?: Record<string, unknown>
+}) {
+  if (Array.isArray(body.entries)) {
+    return body.entries.map((entry) => ({
+      key: String(entry.key || '').trim(),
+      value: String(entry.value || '').trim(),
+    }))
+  }
+
+  if (body.secrets && typeof body.secrets === 'object') {
+    return Object.entries(body.secrets).map(([key, value]) => ({
+      key: String(key || '').trim(),
+      value: String(value || '').trim(),
+    }))
+  }
+
+  return [
+    {
+      key: String(body.key || '').trim(),
+      value: String(body.value || '').trim(),
+    },
+  ]
 }
 
 function getVercelProjectId(env: Record<string, string>) {
@@ -164,10 +246,22 @@ function getVercelTeamId(env: Record<string, string>) {
   ).trim()
 }
 
+async function triggerVercelRedeploy(env: Record<string, string>) {
+  const redeployHookUrl = env.VERCEL_REDEPLOY_HOOK_URL?.trim()
+
+  if (!redeployHookUrl) {
+    return 'not_configured'
+  }
+
+  const redeployResponse = await fetch(redeployHookUrl, { method: 'POST' })
+  return redeployResponse.ok ? 'triggered' : 'failed'
+}
+
 async function upsertVercelSecret(
   env: Record<string, string>,
   key: AllowedAdminSecretKey,
   value: string,
+  options: { redeploy?: boolean } = {},
 ) {
   const vercelToken = env.VERCEL_API_TOKEN?.trim()
   const projectId = getVercelProjectId(env)
@@ -232,14 +326,6 @@ async function upsertVercelSecret(
     }
   }
 
-  let redeploy = 'not_configured'
-  const redeployHookUrl = env.VERCEL_REDEPLOY_HOOK_URL?.trim()
-
-  if (redeployHookUrl) {
-    const redeployResponse = await fetch(redeployHookUrl, { method: 'POST' })
-    redeploy = redeployResponse.ok ? 'triggered' : 'failed'
-  }
-
   return {
     status: 200,
     body: {
@@ -247,7 +333,7 @@ async function upsertVercelSecret(
       key,
       label: allowedAdminSecrets[key].label,
       target: 'production',
-      redeploy,
+      redeploy: options.redeploy === false ? 'not_configured' : await triggerVercelRedeploy(env),
     },
   }
 }
@@ -651,6 +737,37 @@ function extractOutputText(data: OpenAIResponsePayload) {
     return data.output_text.trim()
   }
 
+  if (typeof data.reply === 'string') {
+    return data.reply.trim()
+  }
+
+  if (typeof data.text === 'string') {
+    return data.text.trim()
+  }
+
+  if (typeof data.message === 'string') {
+    return data.message.trim()
+  }
+
+  if (Array.isArray(data.choices)) {
+    return data.choices
+      .map((choice) => {
+        const content = choice.message?.content ?? choice.delta?.content ?? choice.text
+
+        if (Array.isArray(content)) {
+          return content
+            .map((item) => item.text || item.content || '')
+            .filter(Boolean)
+            .join('\n')
+        }
+
+        return content || ''
+      })
+      .filter(Boolean)
+      .join('\n')
+      .trim()
+  }
+
   if (!Array.isArray(data.output)) {
     return ''
   }
@@ -735,14 +852,157 @@ function formatStoreContext(context: unknown) {
     .slice(0, 5000)
 }
 
+type AiMode = 'responses' | 'chat_completions' | 'generic_json'
+
+interface AiConfig {
+  provider: string
+  endpoint: string
+  mode: AiMode
+  model: string
+  apiKey: string
+}
+
+async function readProviderResponse(providerResponse: Response) {
+  const text = await providerResponse.text()
+
+  if (!text) {
+    return {} as OpenAIResponsePayload
+  }
+
+  try {
+    return JSON.parse(text) as OpenAIResponsePayload
+  } catch {
+    return { text } as OpenAIResponsePayload
+  }
+}
+
+function inferAiMode(endpoint: string, configuredMode?: string): AiMode {
+  const mode = String(configuredMode || '').trim()
+
+  if (validAiModes.has(mode)) {
+    return mode as AiMode
+  }
+
+  if (/\/chat\/completions\/?$/i.test(endpoint)) {
+    return 'chat_completions'
+  }
+
+  if (/\/responses\/?$/i.test(endpoint)) {
+    return 'responses'
+  }
+
+  return 'generic_json'
+}
+
+function resolveAiConfig(env: Record<string, string>): AiConfig {
+  const endpoint = (
+    env.AI_API_ENDPOINT ||
+    env.OPENAI_API_ENDPOINT ||
+    'https://api.openai.com/v1/responses'
+  ).trim()
+
+  return {
+    provider: (env.AI_PROVIDER_NAME || 'OpenAI').trim(),
+    endpoint,
+    mode: inferAiMode(endpoint, env.AI_API_MODE || env.OPENAI_API_MODE),
+    model: (env.AI_MODEL || env.OPENAI_MODEL || 'gpt-5.2').trim(),
+    apiKey: (env.AI_API_KEY || env.OPENAI_API_KEY || '').trim(),
+  }
+}
+
+function buildAiRequestPayload({
+  config,
+  input,
+  message,
+  history,
+  storeContext,
+}: {
+  config: AiConfig
+  input: Array<{ role: string; content: string }>
+  message: string
+  history: Array<{ role: string; content: string }>
+  storeContext: string
+}) {
+  if (config.mode === 'responses') {
+    return {
+      model: config.model,
+      instructions: josaninhaInstructions,
+      input,
+      max_output_tokens: 420,
+    }
+  }
+
+  if (config.mode === 'chat_completions') {
+    return {
+      model: config.model,
+      messages: [
+        {
+          role: 'system',
+          content: josaninhaInstructions,
+        },
+        ...(storeContext
+          ? [
+              {
+                role: 'user',
+                content: `Contexto atual da loja para responder com precisão:\n${storeContext}`,
+              },
+            ]
+          : []),
+        ...history,
+        {
+          role: 'user',
+          content: message.slice(0, 1200),
+        },
+      ],
+      max_tokens: 420,
+      temperature: 0.6,
+    }
+  }
+
+  return {
+    model: config.model,
+    instructions: josaninhaInstructions,
+    message: message.slice(0, 1200),
+    history,
+    storeContext,
+    maxTokens: 420,
+  }
+}
+
+function classifyAiError(status: number, data: OpenAIResponsePayload) {
+  const providerError = data.error
+  const message =
+    providerError?.message ||
+    data.message ||
+    data.text ||
+    'Falha ao gerar resposta'
+  const code = providerError?.code || providerError?.type || data.code || ''
+  const errorText = `${code} ${message}`
+
+  if (status === 401 || status === 403) {
+    return { code: 'ai_auth_failed', error: message }
+  }
+
+  if (status === 429 && /quota|billing|credit|insufficient/i.test(errorText)) {
+    return { code: 'ai_quota_exceeded', error: message }
+  }
+
+  if (status === 429) {
+    return { code: 'ai_rate_limited', error: message }
+  }
+
+  return { code: code || 'ai_request_failed', error: message }
+}
+
 async function generateJosaninhaReply(env: Record<string, string>, body: string) {
-  const apiKey = env.OPENAI_API_KEY?.trim()
-  if (!apiKey) {
+  const config = resolveAiConfig(env)
+
+  if (!config.apiKey) {
     return {
       status: 503,
       body: {
-        code: 'missing_openai_key',
-        error: 'OPENAI_API_KEY ausente',
+        code: 'missing_ai_key',
+        error: 'AI_API_KEY ausente',
       },
     }
   }
@@ -758,40 +1018,47 @@ async function generateJosaninhaReply(env: Record<string, string>, body: string)
     return { status: 400, body: { error: 'Mensagem vazia' } }
   }
 
-  const openaiResponse = await fetch('https://api.openai.com/v1/responses', {
+  const storeContext = formatStoreContext(payload.storeContext)
+  const history = normalizeHistory(payload.history)
+  const input = [
+    ...(storeContext
+      ? [
+          {
+            role: 'user',
+            content: `Contexto atual da loja para responder com precisão:\n${storeContext}`,
+          },
+        ]
+      : []),
+    ...history,
+    {
+      role: 'user',
+      content: message.slice(0, 1200),
+    },
+  ]
+
+  const providerResponse = await fetch(config.endpoint, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${config.apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      model: env.OPENAI_MODEL || 'gpt-5.2',
-      instructions: josaninhaInstructions,
-      input: [
-        ...(payload.storeContext
-          ? [
-              {
-                role: 'user',
-                content: `Contexto atual da loja para responder com precisão:\n${formatStoreContext(payload.storeContext)}`,
-              },
-            ]
-          : []),
-        ...normalizeHistory(payload.history),
-        {
-          role: 'user',
-          content: message.slice(0, 1200),
-        },
-      ],
-      max_output_tokens: 420,
-    }),
+    body: JSON.stringify(
+      buildAiRequestPayload({
+        config,
+        input,
+        message,
+        history,
+        storeContext,
+      }),
+    ),
   })
 
-  const data = (await openaiResponse.json()) as OpenAIResponsePayload
+  const data = await readProviderResponse(providerResponse)
 
-  if (!openaiResponse.ok) {
+  if (!providerResponse.ok) {
     return {
-      status: openaiResponse.status,
-      body: { error: data.error?.message || 'Falha ao gerar resposta' },
+      status: providerResponse.status,
+      body: classifyAiError(providerResponse.status, data),
     }
   }
 
@@ -801,7 +1068,9 @@ async function generateJosaninhaReply(env: Record<string, string>, body: string)
       reply:
         extractOutputText(data) ||
         'Posso te ajudar com isso. Me conte um pouco mais para eu responder com mais precisao.',
-      model: env.OPENAI_MODEL || 'gpt-5.2',
+      model: config.model,
+      provider: config.provider,
+      mode: config.mode,
     },
   }
 }
@@ -916,6 +1185,8 @@ function localApiPlugin(env: Record<string, string>): Plugin {
             adminToken?: string
             key?: string
             value?: string
+            entries?: Array<{ key?: string; value?: string }>
+            secrets?: Record<string, string>
           }
           const adminToken =
             body.adminToken ||
@@ -931,23 +1202,54 @@ function localApiPlugin(env: Record<string, string>): Plugin {
             return
           }
 
-          const key = String(body.key || '').trim()
-          const value = String(body.value || '').trim()
+          const entries = normalizeAdminSecretEntries(body)
 
-          if (!isAllowedAdminSecretKey(key)) {
-            sendJson(response, 400, { error: 'Secret nao permitido.' })
+          if (!entries.length) {
+            sendJson(response, 400, { error: 'Nenhuma configuracao enviada.' })
             return
           }
 
-          if (!allowedAdminSecrets[key].validate(value)) {
-            sendJson(response, 400, {
-              error: `Informe um valor valido para ${allowedAdminSecrets[key].label}.`,
+          for (const entry of entries) {
+            if (!isAllowedAdminSecretKey(entry.key)) {
+              sendJson(response, 400, { error: 'Secret nao permitido.' })
+              return
+            }
+
+            if (!allowedAdminSecrets[entry.key].validate(entry.value)) {
+              sendJson(response, 400, {
+                error: `Informe um valor valido para ${allowedAdminSecrets[entry.key].label}.`,
+              })
+              return
+            }
+          }
+
+          const saved: Array<{ key: AllowedAdminSecretKey; label: string }> = []
+
+          for (const entry of entries) {
+            const key = entry.key as AllowedAdminSecretKey
+            const result = await upsertVercelSecret(env, key, entry.value, {
+              redeploy: false,
             })
-            return
+
+            if (result.status !== 200) {
+              sendJson(response, result.status, result.body)
+              return
+            }
+
+            saved.push({
+              key,
+              label: allowedAdminSecrets[key].label,
+            })
           }
 
-          const result = await upsertVercelSecret(env, key, value)
-          sendJson(response, result.status, result.body)
+          sendJson(response, 200, {
+            ok: true,
+            key: saved[0]?.key,
+            label: saved.length === 1 ? saved[0]?.label : `${saved.length} configurações`,
+            labels: saved.map((item) => item.label),
+            target: 'production',
+            redeploy: await triggerVercelRedeploy(env),
+          })
         } catch (error) {
           sendJson(response, 500, {
             error: error instanceof Error ? error.message : 'Nao foi possivel salvar o secret.',

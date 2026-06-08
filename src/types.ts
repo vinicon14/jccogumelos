@@ -230,6 +230,15 @@ export interface PaymentIntent {
   rawStatus?: string | null
 }
 
+export type AssistantApiMode = 'responses' | 'chat_completions' | 'generic_json'
+
+export interface AssistantApiConfig {
+  provider: string
+  endpoint: string
+  model: string
+  mode: AssistantApiMode
+}
+
 export interface StoreSettings {
   companyName: string
   instagram: string
@@ -243,6 +252,7 @@ export interface StoreSettings {
   josaninhaEnabled: boolean
   whatsappAutoEnabled: boolean
   assistantBehavior: string
+  assistantApi: AssistantApiConfig
   businessHours: string
   instagramUserId: string
   paymentGateway: PaymentGatewayConfig

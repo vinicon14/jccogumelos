@@ -75,6 +75,7 @@ const validOrderStatuses = new Set([
 const validSubscriptionStatuses = new Set(['ativa', 'pausada', 'cancelada'])
 validSubscriptionStatuses.add('aguardando_pagamento')
 const validSubscriptionCadences = new Set(['semanal', 'quinzenal', 'mensal'])
+const validAssistantApiModes = new Set(['responses', 'chat_completions', 'generic_json'])
 const validWholesaleQueueStatuses = new Set([
   'na_fila',
   'em_producao',
@@ -264,9 +265,18 @@ function normalizeBlogPost(post: Partial<BlogPost>): BlogPost {
 function normalizeState(state: Partial<StoredState>): StoredState {
   const incomingSettings = state.settings
   const incomingGateway = incomingSettings?.paymentGateway
+  const incomingAssistantApi = incomingSettings?.assistantApi
   const mergedPaymentGateway = {
     ...seedStoreSettings.paymentGateway,
     ...incomingGateway,
+  }
+  const assistantApiMode = asText(incomingAssistantApi?.mode)
+  const mergedAssistantApi = {
+    ...seedStoreSettings.assistantApi,
+    ...incomingAssistantApi,
+    mode: (validAssistantApiModes.has(assistantApiMode)
+      ? assistantApiMode
+      : seedStoreSettings.assistantApi.mode) as StoreSettings['assistantApi']['mode'],
   }
   const legacyEmptyGateway =
     incomingGateway &&
@@ -290,6 +300,7 @@ function normalizeState(state: Partial<StoredState>): StoredState {
     settings: {
       ...seedStoreSettings,
       ...incomingSettings,
+      assistantApi: mergedAssistantApi,
       paymentGateway: legacyEmptyGateway
         ? {
             ...mergedPaymentGateway,

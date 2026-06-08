@@ -7,6 +7,10 @@ interface ChatMessage {
   text: string
 }
 
+interface JosaninhaError extends Error {
+  code?: string
+}
+
 interface SpeechRecognitionAlternativeLike {
   transcript: string
 }
@@ -61,7 +65,9 @@ async function requestJosaninhaReply(
     : {}
 
   if (!response.ok) {
-    throw new Error(data.error || 'Resposta indisponível')
+    const error = new Error(data.error || 'Resposta indisponível') as JosaninhaError
+    error.code = data.code
+    throw error
   }
 
   const reply = data.reply?.trim()
@@ -133,14 +139,31 @@ export function AssistantWidget() {
       const reply = await requestJosaninhaReply(text, nextHistory, storeContext)
       setMessages((current) => [...current, { role: 'assistant', text: reply }])
     } catch (error) {
+      const josaninhaError = error as JosaninhaError
+      const errorCode = josaninhaError?.code
       setMessages((current) => [
         ...current,
         {
           role: 'assistant',
-          text:
-            error instanceof Error && error.message.includes('OPENAI_API_KEY')
-              ? 'A Josaninha ainda não está conectada ao GPT porque falta configurar a OPENAI_API_KEY no servidor.'
-              : 'Não consegui falar com o GPT agora. Tente novamente em instantes.',
+          text: (() => {
+            if (errorCode === 'missing_ai_key') {
+              return 'A Josaninha ainda não tem uma chave de API ativa no servidor. Salve a chave pelo painel administrativo.'
+            }
+
+            if (errorCode === 'ai_auth_failed') {
+              return 'A chave da IA foi recusada pelo provedor. Confira se a chave, endpoint e modelo estão corretos no painel.'
+            }
+
+            if (errorCode === 'ai_quota_exceeded') {
+              return 'A API está configurada, mas o provedor informou falta de cota, créditos ou limite de cobrança. Ajuste a conta da API e tente novamente.'
+            }
+
+            if (errorCode === 'ai_rate_limited') {
+              return 'O provedor da IA limitou muitas chamadas em pouco tempo. Tente novamente em instantes.'
+            }
+
+            return 'Não consegui falar com a API da IA agora. Confira endpoint, modelo e chave no painel administrativo.'
+          })(),
         },
       ])
     } finally {

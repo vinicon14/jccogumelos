@@ -135,22 +135,33 @@ O painel administrativo pode salvar secrets privados na Vercel por meio de
 Secrets aceitos pelo painel:
 
 - `MERCADO_PAGO_ACCESS_TOKEN`
+- `AI_API_KEY`
+- `AI_PROVIDER_NAME`
+- `AI_API_ENDPOINT`
+- `AI_MODEL`
+- `AI_API_MODE`
 - `OPENAI_API_KEY`
+- `INSTAGRAM_ACCESS_TOKEN`
 
 Esses valores não são salvos em localStorage e não usam prefixo `VITE_`.
 
-## Josaninha com GPT
+## Josaninha com API de IA
 
-A assistente usa a função `api/josaninha.js` para chamar a OpenAI Responses API
-no servidor. Configure `OPENAI_API_KEY` no ambiente de deploy e, se quiser
-trocar o modelo, ajuste `OPENAI_MODEL`. A chave da OpenAI não deve usar prefixo
-`VITE_`, porque ela nunca deve ser enviada para o navegador.
+A assistente usa a função `api/josaninha.js` no servidor. O painel admin permite
+configurar qualquer provedor compatível com API de IA via:
 
-Também é possível colar a chave GPT no painel admin em Configurações. O painel
-salva em `OPENAI_API_KEY` na Vercel usando o endpoint protegido acima.
+- `AI_API_KEY`: chave privada do provedor.
+- `AI_API_ENDPOINT`: endpoint completo, como `https://api.openai.com/v1/responses`.
+- `AI_MODEL`: modelo usado pela Josaninha.
+- `AI_API_MODE`: `responses`, `chat_completions` ou `generic_json`.
+- `AI_PROVIDER_NAME`: nome exibido/administrativo do provedor.
 
-Sem `OPENAI_API_KEY`, o chat não simula respostas automáticas: ele avisa que a
-conexão GPT precisa ser configurada no servidor.
+O endpoint mantém compatibilidade com `OPENAI_API_KEY` e `OPENAI_MODEL`, mas usa
+`AI_API_KEY` e `AI_MODEL` primeiro. Essas chaves nunca devem usar prefixo
+`VITE_`, porque não podem ser enviadas para o navegador.
+
+Sem chave configurada, ou se o provedor retornar erro de cota/autenticação, o
+chat mostra o diagnóstico real no widget em vez de simular resposta automática.
 
 ## Pix Mercado Pago
 

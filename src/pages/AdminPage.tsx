@@ -31,6 +31,7 @@ import { useStore } from '../context/useStore'
 import type {
   BlogPost,
   BlogMedia,
+  AssistantApiConfig,
   Coupon,
   CustomerSubscription,
   Order,
@@ -178,7 +179,7 @@ export function AdminPage() {
   } = useStore()
   const [mediaError, setMediaError] = useState('')
   const [mercadoPagoTokenDraft, setMercadoPagoTokenDraft] = useState('')
-  const [openAiKeyDraft, setOpenAiKeyDraft] = useState('')
+  const [assistantApiKeyDraft, setAssistantApiKeyDraft] = useState('')
   const [instagramTokenDraft, setInstagramTokenDraft] = useState('')
   const [savingSecretKey, setSavingSecretKey] = useState('')
   const [secretFeedbackKey, setSecretFeedbackKey] = useState('')
@@ -439,6 +440,16 @@ export function AdminPage() {
     }))
   }
 
+  function updateAssistantApi(patch: Partial<AssistantApiConfig>) {
+    setSettings((current) => ({
+      ...current,
+      assistantApi: {
+        ...current.assistantApi,
+        ...patch,
+      },
+    }))
+  }
+
   async function handleProductUpload(id: string, file?: File) {
     if (!file) {
       return
@@ -536,21 +547,31 @@ export function AdminPage() {
     }
   }
 
-  async function saveAdminSecret(key: string, value: string, label: string) {
+  async function saveAdminSecretEntries(
+    entries: { key: string; value: string; label: string }[],
+    savingKey: string,
+    successLabel: string,
+  ) {
     if (!user?.adminToken) {
       setSecretError('Sessão administrativa expirada. Entre novamente.')
       setSecretMessage('')
       return
     }
 
-    if (!value.trim()) {
-      setSecretError(`Informe ${label}.`)
+    const cleanEntries = entries.map((entry) => ({
+      ...entry,
+      value: entry.value.trim(),
+    }))
+    const emptyEntry = cleanEntries.find((entry) => !entry.value)
+
+    if (emptyEntry) {
+      setSecretError(`Informe ${emptyEntry.label}.`)
       setSecretMessage('')
       return
     }
 
-    setSavingSecretKey(key)
-    setSecretFeedbackKey(key)
+    setSavingSecretKey(savingKey)
+    setSecretFeedbackKey(savingKey)
     setSecretError('')
     setSecretMessage('')
 
@@ -561,11 +582,14 @@ export function AdminPage() {
           Authorization: `Bearer ${user.adminToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ key, value }),
+        body: JSON.stringify({
+          entries: cleanEntries.map(({ key, value }) => ({ key, value })),
+        }),
       })
       const data = (await response.json()) as {
         error?: string
         label?: string
+        labels?: string[]
         redeploy?: 'triggered' | 'failed' | 'not_configured'
       }
 
@@ -573,20 +597,24 @@ export function AdminPage() {
         throw new Error(data.error || 'Não foi possível salvar na Vercel.')
       }
 
-      if (key === 'MERCADO_PAGO_ACCESS_TOKEN') {
+      if (cleanEntries.some((entry) => entry.key === 'MERCADO_PAGO_ACCESS_TOKEN')) {
         setMercadoPagoTokenDraft('')
       }
 
-      if (key === 'OPENAI_API_KEY') {
-        setOpenAiKeyDraft('')
+      if (
+        cleanEntries.some(
+          (entry) => entry.key === 'AI_API_KEY' || entry.key === 'OPENAI_API_KEY',
+        )
+      ) {
+        setAssistantApiKeyDraft('')
       }
 
-      if (key === 'INSTAGRAM_ACCESS_TOKEN') {
+      if (cleanEntries.some((entry) => entry.key === 'INSTAGRAM_ACCESS_TOKEN')) {
         setInstagramTokenDraft('')
       }
 
       setSecretMessage(
-        `${data.label || label} salvo na Vercel.${
+        `${data.label || data.labels?.join(', ') || successLabel} salvo na Vercel.${
           data.redeploy === 'triggered'
             ? ' Deploy automático iniciado.'
             : ' A próxima publicação usará o novo valor.'
@@ -599,6 +627,46 @@ export function AdminPage() {
     } finally {
       setSavingSecretKey('')
     }
+  }
+
+  async function saveAdminSecret(key: string, value: string, label: string) {
+    await saveAdminSecretEntries([{ key, value, label }], key, label)
+  }
+
+  async function saveAssistantApiConfig() {
+    const entries = [
+      {
+        key: 'AI_PROVIDER_NAME',
+        value: settings.assistantApi.provider,
+        label: 'nome do provedor',
+      },
+      {
+        key: 'AI_API_ENDPOINT',
+        value: settings.assistantApi.endpoint,
+        label: 'endpoint da API',
+      },
+      {
+        key: 'AI_MODEL',
+        value: settings.assistantApi.model,
+        label: 'modelo da IA',
+      },
+      {
+        key: 'AI_API_MODE',
+        value: settings.assistantApi.mode,
+        label: 'modo da API',
+      },
+      ...(assistantApiKeyDraft.trim()
+        ? [
+            {
+              key: 'AI_API_KEY',
+              value: assistantApiKeyDraft,
+              label: 'chave da API da IA',
+            },
+          ]
+        : []),
+    ]
+
+    await saveAdminSecretEntries(entries, 'AI_ASSISTANT_CONFIG', 'Configuração da API')
   }
 
   const mercadoPagoReady =
@@ -1932,45 +2000,91 @@ export function AdminPage() {
             <div className="admin-section-title compact">
               <KeyRound size={18} />
               <div>
-                <h3>GPT / OpenAI</h3>
-                <p>Chave usada pela Josaninha para responder com GPT.</p>
+                <h3>API da Josaninha</h3>
+                <p>Use OpenAI ou outro endpoint compatível com IA por API.</p>
               </div>
             </div>
+            <div className="admin-field-row compact">
+              <label className="field-label">
+                Provedor
+                <input
+                  value={settings.assistantApi.provider}
+                  placeholder="OpenAI, OpenRouter, DeepSeek..."
+                  onChange={(event) =>
+                    updateAssistantApi({ provider: event.target.value })
+                  }
+                />
+              </label>
+              <label className="field-label">
+                Modo
+                <select
+                  value={settings.assistantApi.mode}
+                  onChange={(event) =>
+                    updateAssistantApi({
+                      mode: event.target.value as AssistantApiConfig['mode'],
+                    })
+                  }
+                >
+                  <option value="responses">Responses API</option>
+                  <option value="chat_completions">Chat Completions</option>
+                  <option value="generic_json">JSON genérico</option>
+                </select>
+              </label>
+            </div>
             <label className="field-label">
-              API Key GPT
+              Endpoint
               <input
-                type="password"
-                value={openAiKeyDraft}
-                placeholder="Cole a chave sk-... da OpenAI"
-                onChange={(event) => setOpenAiKeyDraft(event.target.value)}
+                value={settings.assistantApi.endpoint}
+                placeholder="https://api.openai.com/v1/responses"
+                onChange={(event) =>
+                  updateAssistantApi({ endpoint: event.target.value })
+                }
               />
               <span className="field-hint">
-                Ao salvar, a chave vai para OPENAI_API_KEY na Vercel.
+                Cole o endpoint completo da API. Para OpenRouter e similares, use o endpoint de chat completions.
+              </span>
+            </label>
+            <label className="field-label">
+              Modelo
+              <input
+                value={settings.assistantApi.model}
+                placeholder="gpt-5.2"
+                onChange={(event) => updateAssistantApi({ model: event.target.value })}
+              />
+            </label>
+            <label className="field-label">
+              Chave da API
+              <input
+                type="password"
+                value={assistantApiKeyDraft}
+                placeholder="Cole a chave privada do provedor"
+                onChange={(event) => setAssistantApiKeyDraft(event.target.value)}
+              />
+              <span className="field-hint">
+                Ao salvar, a chave vai para AI_API_KEY na Vercel e não fica no navegador.
               </span>
             </label>
             <div className="secret-action-row">
               <button
                 className="secondary-button"
                 type="button"
-                disabled={savingSecretKey === 'OPENAI_API_KEY'}
-                onClick={() =>
-                  saveAdminSecret('OPENAI_API_KEY', openAiKeyDraft, 'API Key GPT')
-                }
+                disabled={savingSecretKey === 'AI_ASSISTANT_CONFIG'}
+                onClick={() => void saveAssistantApiConfig()}
               >
                 <Save size={16} />
-                {savingSecretKey === 'OPENAI_API_KEY'
+                {savingSecretKey === 'AI_ASSISTANT_CONFIG'
                   ? 'Salvando...'
-                  : 'Salvar chave GPT na Vercel'}
+                  : 'Salvar API da Josaninha na Vercel'}
               </button>
             </div>
-            {secretFeedbackKey === 'OPENAI_API_KEY' && secretMessage && (
+            {secretFeedbackKey === 'AI_ASSISTANT_CONFIG' && secretMessage && (
               <p className="form-success">{secretMessage}</p>
             )}
-            {secretFeedbackKey === 'OPENAI_API_KEY' && secretError && (
+            {secretFeedbackKey === 'AI_ASSISTANT_CONFIG' && secretError && (
               <p className="form-error">{secretError}</p>
             )}
             <p className="field-hint">
-              Para salvar automaticamente, configure VERCEL_API_TOKEN uma vez na Vercel.
+              Compatível com APIs no formato OpenAI Responses, Chat Completions ou JSON simples.
             </p>
           </div>
 

@@ -212,6 +212,12 @@ export const storeSettings: StoreSettings = {
   whatsappAutoEnabled: true,
   assistantBehavior:
     'Atender com tom acolhedor, gourmet e objetivo. Recomendar produtos, receitas e assinaturas.',
+  assistantApi: {
+    provider: 'OpenAI',
+    endpoint: 'https://api.openai.com/v1/responses',
+    model: 'gpt-5.2',
+    mode: 'responses',
+  },
   businessHours: '',
   instagramUserId: '',
   paymentGateway: {
