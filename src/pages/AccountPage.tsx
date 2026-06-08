@@ -1,24 +1,105 @@
-import { BadgeCheck, Gift, History, Mail, MapPin, Phone, UserRound } from 'lucide-react'
+import {
+  BadgeCheck,
+  CalendarClock,
+  Gift,
+  History,
+  Mail,
+  MapPin,
+  PauseCircle,
+  Phone,
+  PlayCircle,
+  UserRound,
+  XCircle,
+} from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { MediaPreview } from '../components/MediaPreview'
 import { useAuth } from '../context/useAuth'
 import { useStore } from '../context/useStore'
 import { formatCep, formatCustomerAddress } from '../utils/customers'
 import { formatCurrency, formatDate } from '../utils/format'
-
-const statusLabels: Record<string, string> = {
-  aguardando_pagamento: 'Aguardando pagamento',
-  pago: 'Pago',
-  em_separacao: 'Em separação',
-  enviado: 'Enviado',
-  entregue: 'Entregue',
-  cancelado: 'Cancelado',
-}
+import {
+  formatPaymentRemaining,
+  getOrderTrackingIndex,
+  orderBelongsToUser,
+  orderStatusLabels,
+  orderTrackingSteps,
+} from '../utils/orders'
+import {
+  canSubscribeToPlan,
+  createCustomerSubscription,
+  subscriptionStatusLabels,
+} from '../utils/subscriptions'
+import type { SubscriptionStatus } from '../types'
 
 export function AccountPage() {
   const { user } = useAuth()
-  const { orders, products, subscriptionPlans } = useStore()
+  const [now, setNow] = useState(0)
+  const {
+    orders,
+    products,
+    subscriptionPlans,
+    customerSubscriptions,
+    notifications,
+    setCustomerSubscriptions,
+    setNotifications,
+  } = useStore()
   const productByName = new Map(products.map((product) => [product.name, product]))
-  const userOrders = orders.filter((order) => order.customerName === user?.name)
+  const userOrders = orders.filter((order) => orderBelongsToUser(order, user))
+  const userSubscriptions = customerSubscriptions.filter(
+    (subscription) => subscription.customerId === user?.id,
+  )
+  const activeSubscriptions = userSubscriptions.filter(
+    (subscription) => subscription.status !== 'cancelada',
+  )
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 1000)
+
+    return () => window.clearInterval(interval)
+  }, [])
+
+  function subscribeToPlan(planId: string) {
+    if (!user) {
+      return
+    }
+
+    const plan = subscriptionPlans.find((item) => item.id === planId)
+    if (
+      !plan ||
+      !canSubscribeToPlan({ subscriptions: customerSubscriptions, planId, userId: user.id })
+    ) {
+      return
+    }
+
+    const subscription = createCustomerSubscription({ plan, user })
+    setCustomerSubscriptions([subscription, ...customerSubscriptions])
+    setNotifications([
+      {
+        id: crypto.randomUUID(),
+        audience: 'admin',
+        title: 'Nova assinatura criada',
+        message: `${user.name} assinou ${plan.name}.`,
+        createdAt: new Date().toISOString(),
+        read: false,
+        link: '/admin',
+      },
+      ...notifications,
+    ])
+  }
+
+  function updateSubscriptionStatus(id: string, status: SubscriptionStatus) {
+    setCustomerSubscriptions(
+      customerSubscriptions.map((subscription) =>
+        subscription.id === id
+          ? {
+              ...subscription,
+              status,
+              lastUpdatedAt: new Date().toISOString(),
+            }
+          : subscription,
+      ),
+    )
+  }
 
   return (
     <section className="page-shell">
@@ -83,8 +164,8 @@ export function AccountPage() {
             <article className="metric-card">
               <BadgeCheck size={24} />
               <span>Assinatura</span>
-              <strong>{subscriptionPlans.length}</strong>
-              <p>Planos disponíveis para assinatura.</p>
+              <strong>{activeSubscriptions.length}</strong>
+              <p>Planos ativos ou pausados na sua conta.</p>
             </article>
             <article className="metric-card">
               <History size={24} />
@@ -95,38 +176,63 @@ export function AccountPage() {
           </div>
 
           <section className="table-panel">
-            <h2>Pedidos recentes</h2>
-            {userOrders.length === 0 ? (
+            <h2>Minhas assinaturas</h2>
+            {userSubscriptions.length === 0 ? (
               <div className="empty-state compact">
-                <h2>Nenhum pedido registrado ainda.</h2>
+                <h2>Nenhuma assinatura ativa ainda.</h2>
               </div>
             ) : (
               <div className="customer-order-list">
-                {userOrders.map((order) => (
-                  <article className="customer-order-card" key={order.id}>
+                {userSubscriptions.map((subscription) => (
+                  <article className="customer-order-card subscription-account-card" key={subscription.id}>
                     <div>
-                      <strong>{order.id}</strong>
+                      <strong>{subscription.planName}</strong>
                       <span>
-                        {formatDate(order.createdAt)} · {statusLabels[order.status]} ·{' '}
-                        {formatCurrency(order.total)}
+                        {subscriptionStatusLabels[subscription.status]} ·{' '}
+                        {formatCurrency(subscription.price)} · {subscription.cadence}
                       </span>
                     </div>
-                    <div className="admin-order-products">
-                      {order.items.map((itemName) => {
-                        const product = productByName.get(itemName)
-                        return (
-                          <span className="order-product-chip" key={itemName}>
-                            {product && (
-                              <MediaPreview
-                                src={product.image}
-                                alt={product.name}
-                                mediaType={product.mediaType}
-                              />
-                            )}
-                            {itemName}
-                          </span>
-                        )
-                      })}
+                    <div className="subscription-card-meta">
+                      <span>
+                        <CalendarClock size={16} />
+                        Próxima entrega: {formatDate(subscription.nextDeliveryAt)}
+                      </span>
+                      <span>
+                        <MapPin size={16} />
+                        {subscription.deliveryAddress}
+                      </span>
+                    </div>
+                    <div className="subscription-actions">
+                      {subscription.status === 'ativa' && (
+                        <button
+                          className="secondary-button"
+                          type="button"
+                          onClick={() => updateSubscriptionStatus(subscription.id, 'pausada')}
+                        >
+                          <PauseCircle size={16} />
+                          Pausar
+                        </button>
+                      )}
+                      {subscription.status === 'pausada' && (
+                        <button
+                          className="secondary-button"
+                          type="button"
+                          onClick={() => updateSubscriptionStatus(subscription.id, 'ativa')}
+                        >
+                          <PlayCircle size={16} />
+                          Reativar
+                        </button>
+                      )}
+                      {subscription.status !== 'cancelada' && (
+                        <button
+                          className="secondary-button danger"
+                          type="button"
+                          onClick={() => updateSubscriptionStatus(subscription.id, 'cancelada')}
+                        >
+                          <XCircle size={16} />
+                          Cancelar
+                        </button>
+                      )}
                     </div>
                   </article>
                 ))}
@@ -135,15 +241,130 @@ export function AccountPage() {
           </section>
 
           <section className="table-panel">
+            <h2>Pedidos recentes</h2>
+            {userOrders.length === 0 ? (
+              <div className="empty-state compact">
+                <h2>Nenhum pedido registrado ainda.</h2>
+              </div>
+            ) : (
+              <div className="customer-order-list">
+                {userOrders.map((order) => {
+                  const currentIndex = getOrderTrackingIndex(order.status)
+
+                  return (
+                    <article className="customer-order-card" key={order.id}>
+                      <div>
+                        <strong>{order.id}</strong>
+                        <span>
+                          {formatDate(order.createdAt)} · {orderStatusLabels[order.status]} ·{' '}
+                          {formatCurrency(order.total)}
+                        </span>
+                      </div>
+                      <div className="admin-order-products">
+                        {order.items.map((itemName) => {
+                          const product = productByName.get(itemName)
+                          return (
+                            <span className="order-product-chip" key={itemName}>
+                              {product && (
+                                <MediaPreview
+                                  src={product.image}
+                                  alt={product.name}
+                                  mediaType={product.mediaType}
+                                />
+                              )}
+                              {itemName}
+                            </span>
+                          )
+                        })}
+                      </div>
+                      <div
+                        className={`order-tracker ${
+                          order.status === 'cancelado' ? 'cancelled' : ''
+                        }`}
+                      >
+                        {orderTrackingSteps.map((step, index) => {
+                          const isDone =
+                            order.status !== 'cancelado' &&
+                            currentIndex >= index &&
+                            currentIndex >= 0
+                          const isCurrent = order.status === step.status
+
+                          return (
+                            <span
+                              className={`order-tracker-step ${
+                                isDone ? 'done' : ''
+                              } ${isCurrent ? 'current' : ''}`}
+                              key={step.status}
+                            >
+                              <i />
+                              {step.label}
+                            </span>
+                          )
+                        })}
+                        {order.status === 'cancelado' && (
+                          <span className="order-tracker-step danger current">
+                            <i />
+                            Cancelado
+                          </span>
+                        )}
+                      </div>
+                      <div className="customer-order-meta">
+                        {order.deliveryAddress && (
+                          <span>
+                            <MapPin size={15} />
+                            {order.deliveryAddress}
+                          </span>
+                        )}
+                        {order.status === 'aguardando_pagamento' && (
+                          <span>
+                            <CalendarClock size={15} />
+                            Pagamento expira em{' '}
+                            {now ? formatPaymentRemaining(order, now) : 'calculando'}
+                          </span>
+                        )}
+                        {order.status === 'cancelado' && (
+                          <span>
+                            <XCircle size={15} />
+                            Pedido cancelado. Faça uma nova compra quando quiser.
+                          </span>
+                        )}
+                      </div>
+                    </article>
+                  )
+                })}
+              </div>
+            )}
+          </section>
+
+          <section className="table-panel">
             <h2>Planos disponíveis</h2>
             <div className="grid gap-3 md:grid-cols-3">
-              {subscriptionPlans.map((plan) => (
-                <article className="mini-plan" key={plan.id}>
-                  <strong>{plan.name}</strong>
-                  <span>{formatCurrency(plan.price)}</span>
-                  <p>{plan.description}</p>
-                </article>
-              ))}
+              {subscriptionPlans.map((plan) => {
+                const canSubscribe = Boolean(
+                  user &&
+                    canSubscribeToPlan({
+                    subscriptions: customerSubscriptions,
+                    planId: plan.id,
+                    userId: user.id,
+                    }),
+                )
+
+                return (
+                  <article className="mini-plan" key={plan.id}>
+                    <strong>{plan.name}</strong>
+                    <span>{formatCurrency(plan.price)}</span>
+                    <p>{plan.description}</p>
+                    <button
+                      className="secondary-button plan-action-button"
+                      type="button"
+                      disabled={!canSubscribe}
+                      onClick={() => subscribeToPlan(plan.id)}
+                    >
+                      {canSubscribe ? 'Assinar' : 'Já ativo'}
+                    </button>
+                  </article>
+                )
+              })}
             </div>
           </section>
         </div>

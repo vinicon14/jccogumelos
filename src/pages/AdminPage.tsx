@@ -1,13 +1,17 @@
 import {
+  BadgeCheck,
   Boxes,
+  CalendarClock,
   FilePlus2,
   Image as ImageIcon,
   KeyRound,
   Mail,
   MapPin,
   MessageCircle,
+  PauseCircle,
   Percent,
   Phone,
+  PlayCircle,
   Plus,
   QrCode,
   Save,
@@ -16,6 +20,7 @@ import {
   ShoppingCart,
   Trash2,
   UsersRound,
+  XCircle,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { MediaPreview } from '../components/MediaPreview'
@@ -24,11 +29,13 @@ import { useStore } from '../context/useStore'
 import type {
   BlogPost,
   Coupon,
+  CustomerSubscription,
   Order,
   OrderStatus,
   PaymentGatewayConfig,
   Product,
   ProductCategory,
+  SubscriptionStatus,
   SubscriptionPlan,
 } from '../types'
 import {
@@ -39,6 +46,8 @@ import {
 } from '../utils/customers'
 import { formatCurrency } from '../utils/format'
 import { inferMediaType, readMediaFile } from '../utils/media'
+import { isOrderVisibleInAdmin, withOrderStatus } from '../utils/orders'
+import { subscriptionStatusLabels } from '../utils/subscriptions'
 
 const statusLabels: Record<OrderStatus, string> = {
   aguardando_pagamento: 'Aguardando pagamento',
@@ -59,6 +68,7 @@ const categoryLabels: Record<ProductCategory, string> = {
 
 const productCategories = Object.keys(categoryLabels) as ProductCategory[]
 const orderStatuses = Object.keys(statusLabels) as OrderStatus[]
+const subscriptionStatuses = Object.keys(subscriptionStatusLabels) as SubscriptionStatus[]
 
 function createProduct(): Product {
   return {
@@ -119,6 +129,7 @@ export function AdminPage() {
   const {
     products,
     subscriptionPlans,
+    customerSubscriptions,
     coupons,
     orders,
     blogPosts,
@@ -126,6 +137,7 @@ export function AdminPage() {
     settings,
     setProducts,
     setSubscriptionPlans,
+    setCustomerSubscriptions,
     setCoupons,
     setOrders,
     setBlogPosts,
@@ -142,7 +154,13 @@ export function AdminPage() {
   const [customerSearch, setCustomerSearch] = useState('')
   const [registeredCustomers, setRegisteredCustomers] = useState(() => readStoredCustomers())
 
-  const monthSales = orders.reduce((total, order) => total + order.total, 0)
+  const monthSales = orders
+    .filter((order) => order.status !== 'cancelado')
+    .reduce((total, order) => total + order.total, 0)
+  const activeOrders = useMemo(() => orders.filter(isOrderVisibleInAdmin), [orders])
+  const activeSubscriptions = customerSubscriptions.filter(
+    (subscription) => subscription.status !== 'cancelada',
+  )
   const productByName = useMemo(() => {
     return new Map(products.map((product) => [product.name, product]))
   }, [products])
@@ -199,7 +217,37 @@ export function AdminPage() {
   }
 
   function updateOrder(id: string, patch: Partial<Order>) {
-    setOrders(orders.map((order) => (order.id === id ? { ...order, ...patch } : order)))
+    const currentOrder = orders.find((order) => order.id === id)
+    const statusChanged =
+      patch.status && currentOrder && patch.status !== currentOrder.status
+    const now = new Date().toISOString()
+
+    setOrders(
+      orders.map((order) => {
+        if (order.id !== id) {
+          return order
+        }
+
+        const { status, ...rest } = patch
+        const statusOrder = status ? withOrderStatus(order, status, now) : order
+        return { ...statusOrder, ...rest, updatedAt: now }
+      }),
+    )
+
+    if (statusChanged && currentOrder) {
+      setNotifications([
+        {
+          id: crypto.randomUUID(),
+          audience: 'customer',
+          title: 'Pedido atualizado',
+          message: `${currentOrder.id} agora está como ${statusLabels[patch.status!]}.`,
+          createdAt: now,
+          read: false,
+          link: '/conta',
+        },
+        ...notifications,
+      ])
+    }
   }
 
   function updateCoupon(code: string, patch: Partial<Coupon>) {
@@ -213,6 +261,20 @@ export function AdminPage() {
   function updatePlan(id: string, patch: Partial<SubscriptionPlan>) {
     setSubscriptionPlans(
       subscriptionPlans.map((plan) => (plan.id === id ? { ...plan, ...patch } : plan)),
+    )
+  }
+
+  function updateCustomerSubscription(id: string, patch: Partial<CustomerSubscription>) {
+    setCustomerSubscriptions(
+      customerSubscriptions.map((subscription) =>
+        subscription.id === id
+          ? {
+              ...subscription,
+              ...patch,
+              lastUpdatedAt: new Date().toISOString(),
+            }
+          : subscription,
+      ),
     )
   }
 
@@ -384,8 +446,8 @@ export function AdminPage() {
         <article className="metric-card">
           <Percent size={24} />
           <span>Planos</span>
-          <strong>{subscriptionPlans.length}</strong>
-          <p>Assinaturas editáveis.</p>
+          <strong>{activeSubscriptions.length}</strong>
+          <p>Assinaturas ativas ou pausadas.</p>
         </article>
       </div>
 
@@ -725,6 +787,161 @@ export function AdminPage() {
 
       <section className="table-panel admin-edit-section">
         <div className="admin-section-title">
+          <BadgeCheck size={22} />
+          <div>
+            <h2>Gestão de assinaturas</h2>
+            <p>Status, entrega, valor e dados do cliente assinante.</p>
+          </div>
+          <span className="admin-count-pill">{customerSubscriptions.length}</span>
+        </div>
+        {customerSubscriptions.length === 0 ? (
+          <div className="empty-state compact">
+            <h2>Nenhuma assinatura criada ainda.</h2>
+          </div>
+        ) : (
+          <div className="admin-subscription-grid">
+            {customerSubscriptions.map((subscription) => (
+              <article className="admin-subscription-card" key={subscription.id}>
+                <div className="admin-customer-topline">
+                  <div>
+                    <strong>{subscription.customerName}</strong>
+                    <span>{subscription.customerEmail || 'E-mail não informado'}</span>
+                  </div>
+                  <small>{subscriptionStatusLabels[subscription.status]}</small>
+                </div>
+                <div className="admin-customer-lines">
+                  <span>
+                    <Phone size={15} />
+                    {subscription.customerPhone || 'Telefone não cadastrado'}
+                  </span>
+                  <span>
+                    <MapPin size={15} />
+                    {subscription.deliveryAddress}
+                  </span>
+                  <span>
+                    <CalendarClock size={15} />
+                    Próxima entrega: {subscription.nextDeliveryAt.slice(0, 10)}
+                  </span>
+                </div>
+                <div className="admin-field-row compact">
+                  <label className="field-label">
+                    Plano
+                    <input
+                      value={subscription.planName}
+                      onChange={(event) =>
+                        updateCustomerSubscription(subscription.id, {
+                          planName: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="field-label">
+                    Status
+                    <select
+                      value={subscription.status}
+                      onChange={(event) =>
+                        updateCustomerSubscription(subscription.id, {
+                          status: event.target.value as SubscriptionStatus,
+                        })
+                      }
+                    >
+                      {subscriptionStatuses.map((status) => (
+                        <option key={status} value={status}>
+                          {subscriptionStatusLabels[status]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <div className="admin-field-row compact">
+                  <label className="field-label">
+                    Cadência
+                    <select
+                      value={subscription.cadence}
+                      onChange={(event) =>
+                        updateCustomerSubscription(subscription.id, {
+                          cadence: event.target.value as SubscriptionPlan['cadence'],
+                        })
+                      }
+                    >
+                      <option value="semanal">Semanal</option>
+                      <option value="quinzenal">Quinzenal</option>
+                      <option value="mensal">Mensal</option>
+                    </select>
+                  </label>
+                  <label className="field-label">
+                    Próxima entrega
+                    <input
+                      type="date"
+                      value={subscription.nextDeliveryAt.slice(0, 10)}
+                      onChange={(event) =>
+                        updateCustomerSubscription(subscription.id, {
+                          nextDeliveryAt: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="field-label">
+                    Valor
+                    <input
+                      type="number"
+                      value={subscription.price}
+                      onChange={(event) =>
+                        updateCustomerSubscription(subscription.id, {
+                          price: Number(event.target.value),
+                        })
+                      }
+                    />
+                  </label>
+                </div>
+                <div className="subscription-actions compact">
+                  {subscription.status === 'ativa' && (
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={() =>
+                        updateCustomerSubscription(subscription.id, { status: 'pausada' })
+                      }
+                    >
+                      <PauseCircle size={15} />
+                      Pausar
+                    </button>
+                  )}
+                  {subscription.status === 'pausada' && (
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={() =>
+                        updateCustomerSubscription(subscription.id, { status: 'ativa' })
+                      }
+                    >
+                      <PlayCircle size={15} />
+                      Reativar
+                    </button>
+                  )}
+                  {subscription.status !== 'cancelada' && (
+                    <button
+                      className="secondary-button danger"
+                      type="button"
+                      onClick={() =>
+                        updateCustomerSubscription(subscription.id, {
+                          status: 'cancelada',
+                        })
+                      }
+                    >
+                      <XCircle size={15} />
+                      Cancelar
+                    </button>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="table-panel admin-edit-section">
+        <div className="admin-section-title">
           <FilePlus2 size={22} />
           <div>
             <h2>Blog Josaninha</h2>
@@ -855,17 +1072,25 @@ export function AdminPage() {
             <ShoppingCart size={22} />
             <div>
               <h2>Gestão de pedidos</h2>
-              <p>Quando houver vendas, status e itens poderão ser editados aqui.</p>
+              <p>Somente pedidos aguardando pagamento, pagos ou em separação.</p>
             </div>
+            <span className="admin-count-pill">{activeOrders.length}</span>
           </div>
-          {orders.length === 0 ? (
+          {activeOrders.length === 0 ? (
             <div className="empty-state compact">
-              <h2>Nenhum pedido cadastrado ainda.</h2>
+              <h2>Nenhum pedido ativo para gerenciar.</h2>
             </div>
           ) : (
             <div className="admin-order-list">
-              {orders.map((order) => (
+              {activeOrders.map((order) => (
                 <article className="admin-order-card" key={order.id}>
+                  <div className="admin-order-heading">
+                    <div>
+                      <strong>{order.id}</strong>
+                      <span>{order.customerEmail || 'Cliente sem e-mail'}</span>
+                    </div>
+                    <small>{formatCurrency(order.total)}</small>
+                  </div>
                   <div className="admin-order-products">
                     {order.items.map((itemName) => {
                       const product = productByName.get(itemName)
@@ -911,6 +1136,14 @@ export function AdminPage() {
                       </select>
                     </label>
                   </div>
+                  {order.deliveryAddress && (
+                    <div className="admin-customer-lines">
+                      <span>
+                        <MapPin size={15} />
+                        {order.deliveryAddress}
+                      </span>
+                    </div>
+                  )}
                 </article>
               ))}
             </div>

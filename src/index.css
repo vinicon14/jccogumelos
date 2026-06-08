@@ -2576,3 +2576,161 @@ button:disabled,
   text-decoration: underline;
   text-underline-offset: 0.22rem;
 }
+
+.plan-action-button {
+  margin-top: 0.9rem;
+  width: 100%;
+  justify-content: center;
+}
+
+.subscription-card-meta,
+.customer-order-meta {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.subscription-card-meta span,
+.customer-order-meta span {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 0.45rem;
+  color: #5e554c;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.subscription-card-meta svg,
+.customer-order-meta svg {
+  flex: 0 0 auto;
+  margin-top: 0.05rem;
+  color: #7c5138;
+}
+
+.subscription-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.subscription-actions.compact .secondary-button,
+.subscription-actions .secondary-button {
+  min-height: 2.1rem;
+  padding: 0.42rem 0.62rem;
+  font-size: 0.76rem;
+}
+
+.secondary-button.danger {
+  border-color: rgba(157, 45, 27, 0.24);
+  color: #8d2d1c;
+}
+
+.order-tracker {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.order-tracker-step {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  gap: 0.28rem;
+  color: #8a8178;
+  font-size: 0.68rem;
+  font-weight: 950;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.order-tracker-step i {
+  display: block;
+  height: 0.42rem;
+  border-radius: 999px;
+  background: rgba(54, 48, 40, 0.12);
+}
+
+.order-tracker-step.done i {
+  background: #233d2f;
+}
+
+.order-tracker-step.current {
+  color: #201b17;
+}
+
+.order-tracker-step.current i {
+  box-shadow: 0 0 0 3px rgba(35, 61, 47, 0.12);
+}
+
+.order-tracker.cancelled {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.order-tracker-step.danger {
+  color: #8d2d1c;
+}
+
+.order-tracker-step.danger i {
+  background: #9d2d1b;
+  box-shadow: 0 0 0 3px rgba(157, 45, 27, 0.1);
+}
+
+.admin-subscription-grid {
+  display: grid;
+  gap: 0.52rem;
+}
+
+@media (min-width: 900px) {
+  .admin-subscription-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.admin-subscription-card {
+  display: grid;
+  gap: 0.5rem;
+  border: 1px solid rgba(54, 48, 40, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.74);
+  padding: 0.62rem;
+}
+
+.admin-order-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.admin-order-heading strong,
+.admin-order-heading span,
+.admin-order-heading small {
+  display: block;
+}
+
+.admin-order-heading strong {
+  color: #201b17;
+  font-size: 0.9rem;
+}
+
+.admin-order-heading span {
+  margin-top: 0.12rem;
+  color: #6a6258;
+  font-size: 0.74rem;
+  font-weight: 850;
+}
+
+.admin-order-heading small {
+  color: #233d2f;
+  font-size: 0.78rem;
+  font-weight: 1000;
+  white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+  .order-tracker,
+  .order-tracker.cancelled {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

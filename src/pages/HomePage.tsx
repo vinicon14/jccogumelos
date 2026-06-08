@@ -14,8 +14,13 @@ import { ProductCard } from '../components/ProductCard'
 import { BrandMark } from '../components/BrandMark'
 import { MediaPreview } from '../components/MediaPreview'
 import { contact } from '../config/contact'
+import { useAuth } from '../context/useAuth'
 import { useStore } from '../context/useStore'
 import { formatCurrency } from '../utils/format'
+import {
+  canSubscribeToPlan,
+  createCustomerSubscription,
+} from '../utils/subscriptions'
 
 interface HomePageProps {
   focus?: 'assinaturas'
@@ -45,9 +50,53 @@ const benefits = [
 ]
 
 export function HomePage({ focus }: HomePageProps) {
-  const { products, subscriptionPlans, blogPosts } = useStore()
+  const { user } = useAuth()
+  const {
+    products,
+    subscriptionPlans,
+    customerSubscriptions,
+    blogPosts,
+    notifications,
+    setCustomerSubscriptions,
+    setNotifications,
+  } = useStore()
   const featured = products.filter((product) => product.bestSeller || product.isNew).slice(0, 3)
   const publishedPosts = blogPosts.filter((post) => post.published)
+
+  function handleSubscribe(planId: string) {
+    if (!user) {
+      return
+    }
+
+    const plan = subscriptionPlans.find((item) => item.id === planId)
+    if (!plan || !canSubscribeToPlan({ subscriptions: customerSubscriptions, planId, userId: user.id })) {
+      return
+    }
+
+    const subscription = createCustomerSubscription({ plan, user })
+    setCustomerSubscriptions([subscription, ...customerSubscriptions])
+    setNotifications([
+      {
+        id: crypto.randomUUID(),
+        audience: 'admin',
+        title: 'Nova assinatura criada',
+        message: `${user.name} assinou ${plan.name}.`,
+        createdAt: new Date().toISOString(),
+        read: false,
+        link: '/admin',
+      },
+      {
+        id: crypto.randomUUID(),
+        audience: 'customer',
+        title: 'Assinatura ativa',
+        message: `${plan.name} foi ativado para sua conta.`,
+        createdAt: new Date().toISOString(),
+        read: false,
+        link: '/conta',
+      },
+      ...notifications,
+    ])
+  }
 
   return (
     <>
@@ -143,14 +192,33 @@ export function HomePage({ focus }: HomePageProps) {
             </p>
           </div>
           <div className="grid gap-4 md:grid-cols-3">
-            {subscriptionPlans.map((plan) => (
-              <article className="plan-card" key={plan.id}>
-                <h3>{plan.name}</h3>
-                <p>{plan.description}</p>
-                <strong>{formatCurrency(plan.price)}</strong>
-                <span>{plan.cadence}</span>
-              </article>
-            ))}
+            {subscriptionPlans.map((plan) => {
+                const canSubscribe = Boolean(
+                  user &&
+                    canSubscribeToPlan({
+                      subscriptions: customerSubscriptions,
+                      planId: plan.id,
+                      userId: user.id,
+                    }),
+                )
+
+              return (
+                <article className="plan-card" key={plan.id}>
+                  <h3>{plan.name}</h3>
+                  <p>{plan.description}</p>
+                  <strong>{formatCurrency(plan.price)}</strong>
+                  <span>{plan.cadence}</span>
+                  <button
+                    className="secondary-button plan-action-button"
+                    type="button"
+                    disabled={!canSubscribe}
+                    onClick={() => handleSubscribe(plan.id)}
+                  >
+                    {canSubscribe ? 'Assinar plano' : 'Plano já ativo'}
+                  </button>
+                </article>
+              )
+            })}
           </div>
         </div>
       </section>

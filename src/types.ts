@@ -11,6 +11,7 @@ export type ProductCategory =
 
 export type PaymentMethod = 'pix' | 'credito' | 'debito'
 export type PaymentEnvironment = 'sandbox' | 'production'
+export type SubscriptionStatus = 'ativa' | 'pausada' | 'cancelada'
 
 export type OrderStatus =
   | 'aguardando_pagamento'
@@ -75,11 +76,28 @@ export interface RegisteredCustomer {
 
 export interface Order {
   id: string
+  customerId?: string
   customerName: string
+  customerEmail?: string
+  customerPhone?: string
+  deliveryCep?: string
+  deliveryAddress?: string
   status: OrderStatus
   total: number
   createdAt: string
+  updatedAt?: string
+  paymentMethod?: PaymentMethod
+  paymentExpiresAt?: string
+  paidAt?: string
+  cancelledAt?: string
+  statusHistory?: OrderStatusHistory[]
   items: string[]
+}
+
+export interface OrderStatusHistory {
+  status: OrderStatus
+  label: string
+  createdAt: string
 }
 
 export interface SubscriptionPlan {
@@ -88,6 +106,24 @@ export interface SubscriptionPlan {
   cadence: 'semanal' | 'quinzenal' | 'mensal'
   price: number
   description: string
+}
+
+export interface CustomerSubscription {
+  id: string
+  planId: string
+  planName: string
+  cadence: SubscriptionPlan['cadence']
+  price: number
+  status: SubscriptionStatus
+  customerId: string
+  customerName: string
+  customerEmail: string
+  customerPhone: string
+  deliveryCep: string
+  deliveryAddress: string
+  createdAt: string
+  nextDeliveryAt: string
+  lastUpdatedAt: string
 }
 
 export interface Coupon {

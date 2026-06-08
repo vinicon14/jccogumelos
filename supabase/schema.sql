@@ -55,15 +55,23 @@ create table public.products (
 
 create table public.orders (
   id uuid primary key default gen_random_uuid(),
+  order_code text unique,
   profile_id uuid references public.profiles(id) on delete set null,
   customer_name text not null,
+  customer_email text not null default '',
+  customer_phone text not null default '',
+  delivery_cep text not null default '',
+  delivery_address text not null default '',
   status order_status not null default 'aguardando_pagamento',
   payment_method text,
   subtotal numeric(10, 2) not null default 0,
   shipping numeric(10, 2) not null default 0,
   discount numeric(10, 2) not null default 0,
   total numeric(10, 2) not null default 0,
+  status_history jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  payment_expires_at timestamptz,
   paid_at timestamptz,
   cancelled_at timestamptz
 );
@@ -91,12 +99,19 @@ create table public.coupons (
 create table public.subscriptions (
   id uuid primary key default gen_random_uuid(),
   profile_id uuid references public.profiles(id) on delete cascade,
+  plan_id text,
   plan_name text not null,
   cadence subscription_cadence not null,
   price numeric(10, 2) not null,
   status text not null default 'ativa',
+  customer_email text not null default '',
+  customer_phone text not null default '',
+  delivery_cep text not null default '',
+  delivery_address text not null default '',
+  next_delivery_at date,
   next_billing_at date,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  last_updated_at timestamptz not null default now()
 );
 
 create table public.loyalty_events (
@@ -182,6 +197,10 @@ create policy "Users can read own profile"
 
 create policy "Users can read own orders"
   on public.orders for select
+  using (auth.uid() = profile_id);
+
+create policy "Users can read own subscriptions"
+  on public.subscriptions for select
   using (auth.uid() = profile_id);
 
 create policy "Public can read published blog posts"

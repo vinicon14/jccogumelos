@@ -50,6 +50,22 @@ preencher o endereço pelo CEP e mantém edição manual como fallback. No MVP, 
 clientes ficam em localStorage e o painel administrativo lista esses cadastros
 com busca por nome, e-mail, telefone ou CEP.
 
+## Pedidos e assinaturas
+
+Pedidos criados no checkout ficam visíveis para o cliente em Minha conta, com
+linha de acompanhamento, endereço e prazo do pagamento. Se um pedido permanecer
+em `aguardando_pagamento` por mais de 5 minutos, o MVP cancela automaticamente
+ao carregar ou manter a loja aberta.
+
+No painel administrativo, a gestão de pedidos mostra apenas pedidos ativos:
+`aguardando_pagamento`, `pago` e `em_separacao`. Quando o status passa para
+`enviado`, `entregue` ou `cancelado`, o pedido sai da fila de gestão, mas
+continua no acompanhamento do cliente.
+
+As assinaturas podem ser criadas pelo cliente nas áreas de assinatura e ficam
+editáveis no admin, com status, cadência, valor, próxima entrega e dados do
+assinante.
+
 ## Login administrativo
 
 O admin entra pela mesma tela de login, mas a senha é validada em

@@ -6,7 +6,9 @@ import { useAuth } from '../context/useAuth'
 import { useCart } from '../context/useCart'
 import { useStore } from '../context/useStore'
 import type { PaymentIntent, PaymentMethod } from '../types'
+import { formatCep, formatCustomerAddress } from '../utils/customers'
 import { formatCurrency } from '../utils/format'
+import { createOrderStatusEntry, PAYMENT_TIMEOUT_MS } from '../utils/orders'
 import { buildPixPayload } from '../utils/payment'
 
 const paymentOptions: Array<{ value: PaymentMethod; label: string; icon: typeof QrCode }> = [
@@ -107,6 +109,11 @@ export function CheckoutPage() {
 
     const orderId = `JC-${Date.now().toString().slice(-6)}`
     const orderTotal = total
+    const createdAt = new Date()
+    const createdAtIso = createdAt.toISOString()
+    const paymentExpiresAt = new Date(
+      createdAt.getTime() + PAYMENT_TIMEOUT_MS,
+    ).toISOString()
     let nextPaymentIntent: PaymentIntent | null = null
 
     try {
@@ -144,10 +151,27 @@ export function CheckoutPage() {
     setOrders([
       {
         id: orderId,
+        customerId: user.id,
         customerName: user.name,
+        customerEmail: user.email,
+        customerPhone: user.phone,
+        deliveryCep: formatCep(user.cep),
+        deliveryAddress: formatCustomerAddress({
+          cep: user.cep,
+          street: user.street,
+          neighborhood: user.neighborhood,
+          city: user.city,
+          state: user.state,
+        }),
         status: 'aguardando_pagamento',
         total: orderTotal,
-        createdAt: new Date().toISOString(),
+        createdAt: createdAtIso,
+        updatedAt: createdAtIso,
+        paymentMethod: selectedMethod,
+        paymentExpiresAt,
+        statusHistory: [
+          createOrderStatusEntry('aguardando_pagamento', createdAtIso),
+        ],
         items: lines.map((line) => line.product.name),
       },
       ...orders,
@@ -191,8 +215,8 @@ export function CheckoutPage() {
         <p className="eyebrow">Checkout</p>
         <h1>Finalizar pedido</h1>
         <p>
-          Pagamento Pix com QR Code Mercado Pago e acompanhamento de status do
-          pedido.
+          Pagamento Pix com QR Code Mercado Pago e acompanhamento do pedido na
+          área do cliente.
         </p>
       </div>
 
@@ -299,7 +323,10 @@ export function CheckoutPage() {
           </div>
           <div className="timer-card">
             <TimerReset size={22} />
-            <p>O Pix respeita o tempo de expiração configurado para a loja.</p>
+            <p>
+              O pedido fica aguardando pagamento por 5 minutos. Depois disso, é
+              cancelado automaticamente.
+            </p>
           </div>
           <div className="summary-total">
             <span>Total estimado</span>

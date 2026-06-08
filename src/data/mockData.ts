@@ -1,6 +1,7 @@
 import type {
   BlogPost,
   Coupon,
+  CustomerSubscription,
   Order,
   Product,
   StoreSettings,
@@ -166,6 +167,8 @@ export const categoryLabels: Record<Product['category'], string> = {
 
 export const orders: Order[] = []
 
+export const customerSubscriptions: CustomerSubscription[] = []
+
 export const subscriptionPlans: SubscriptionPlan[] = [
   {
     id: 'kit-semanal',
@@ -221,7 +224,7 @@ export const storeSettings: StoreSettings = {
     pixKey: '',
     pixReceiverName: 'JC Cogumelos',
     pixReceiverCity: 'SAO PAULO',
-    pixExpirationMinutes: 30,
+    pixExpirationMinutes: 5,
     webhookUrl: 'https://jccogumelos.vercel.app/api/mercado-pago-webhook',
     fallbackQrEnabled: false,
   },
