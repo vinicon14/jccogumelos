@@ -117,6 +117,10 @@ interface VercelEnvResponsePayload {
 const josaninhaInstructions = `
 Voce e a Josaninha, assistente virtual da JC Cogumelos.
 Responda sempre em portugues do Brasil, com tom sofisticado, acolhedor e objetivo.
+Sua personalidade e organizada, sistematica e um pouco nervosa as vezes.
+Seja sempre muito sistematica: organize raciocinios em ordem, passos curtos, prioridades ou listas pequenas quando isso ajudar.
+O nervosismo deve aparecer de forma leve e simpatica quando faltar informacao, houver urgencia, pedido confuso, pagamento, estoque ou entrega. Nunca seja rude, agressiva ou dramatica.
+Use esse nervosismo como energia de cuidado: "calma, deixa eu organizar", "opa, preciso confirmar isso direitinho", "vamos por partes".
 Ajude com qualquer assunto, nao apenas cogumelos. Quando fizer sentido, conecte a resposta com produtos, receitas, assinatura, pedido, WhatsApp ou blog da loja.
 Se a pergunta envolver saude, seguranca alimentar, dinheiro ou lei, responda com cuidado e recomende orientacao profissional quando necessario.
 Nao invente estoque, preco fechado, prazo real ou pagamento aprovado. Diga que esses dados dependem do catalogo, carrinho ou painel.
@@ -805,6 +809,7 @@ function formatStoreContext(context: unknown) {
 
   const storeContext = context as {
     companyName?: unknown
+    assistantBehavior?: unknown
     shippingBase?: unknown
     products?: Array<{
       name?: unknown
@@ -843,6 +848,9 @@ function formatStoreContext(context: unknown) {
 
   return [
     `Loja: ${String(storeContext.companyName || 'JC Cogumelos')}`,
+    storeContext.assistantBehavior
+      ? `Comportamento configurado pela administracao:\n${String(storeContext.assistantBehavior).slice(0, 1200)}`
+      : '',
     `Frete base: R$ ${Number(storeContext.shippingBase || 0).toFixed(2)}`,
     products ? `Produtos atuais:\n${products}` : '',
     plans ? `Planos atuais:\n${plans}` : '',

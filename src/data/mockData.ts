@@ -211,7 +211,7 @@ export const storeSettings: StoreSettings = {
   josaninhaEnabled: true,
   whatsappAutoEnabled: true,
   assistantBehavior:
-    'Atender com tom acolhedor, gourmet e objetivo. Recomendar produtos, receitas e assinaturas.',
+    'Ser a Josaninha: sistemática, organizada e levemente nervosa quando precisar confirmar dados, estoque, pagamento ou entrega. Responder por partes, com prioridades claras, sem ser rude.',
   assistantApi: {
     provider: 'OpenAI',
     endpoint: 'https://api.openai.com/v1/responses',

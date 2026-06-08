@@ -38,7 +38,7 @@ type SpeechRecognitionConstructor = new () => SpeechRecognitionLike
 const initialMessages: ChatMessage[] = [
   {
     role: 'assistant',
-    text: 'Oi, eu sou a Josaninha. Pode perguntar qualquer coisa: produtos, receitas, pedidos ou uma dúvida do dia a dia.',
+    text: 'Oi, eu sou a Josaninha. Pode perguntar qualquer coisa que eu organizo por partes, porque bagunça me deixa um pouco nervosa.',
   },
 ]
 
@@ -103,6 +103,7 @@ export function AssistantWidget() {
   const storeContext = useMemo(
     () => ({
       companyName: settings.companyName,
+      assistantBehavior: settings.assistantBehavior,
       shippingBase: settings.shippingBase,
       products: products.map((product) => ({
         name: product.name,
@@ -119,7 +120,13 @@ export function AssistantWidget() {
         description: plan.description,
       })),
     }),
-    [products, settings.companyName, settings.shippingBase, subscriptionPlans],
+    [
+      products,
+      settings.assistantBehavior,
+      settings.companyName,
+      settings.shippingBase,
+      subscriptionPlans,
+    ],
   )
 
   async function sendMessage() {
