@@ -1,5 +1,5 @@
 import { BookOpenText } from 'lucide-react'
-import { MediaPreview } from '../components/MediaPreview'
+import { BlogMediaGallery } from '../components/BlogMediaGallery'
 import { useStore } from '../context/useStore'
 
 export function BlogPage() {
@@ -20,14 +20,11 @@ export function BlogPage() {
         <div className="blog-grid full">
           {publishedPosts.map((post) => (
             <article className="blog-card large" key={post.id}>
-              {post.image && (
-                <MediaPreview
-                  src={post.image}
-                  alt={post.title}
-                  mediaType={post.mediaType}
-                  controls={post.mediaType === 'video'}
-                />
-              )}
+              <BlogMediaGallery
+                media={post.media}
+                fallback={{ src: post.image, mediaType: post.mediaType, alt: post.title }}
+                title={post.title}
+              />
               <div>
                 <BookOpenText size={22} />
                 <h2>{post.title}</h2>

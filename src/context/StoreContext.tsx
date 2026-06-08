@@ -9,6 +9,7 @@ import {
   subscriptionPlans as seedSubscriptionPlans,
 } from '../data/mockData'
 import type {
+  BlogMedia,
   BlogPost,
   Coupon,
   CustomerSubscription,
@@ -158,6 +159,54 @@ function normalizeSubscription(subscription: Partial<CustomerSubscription>): Cus
   }
 }
 
+function normalizeBlogMedia(media: Partial<BlogMedia>, index = 0): BlogMedia | null {
+  const url = asText(media.url)
+
+  if (!url) {
+    return null
+  }
+
+  return {
+    id: asText(media.id) || crypto.randomUUID(),
+    url,
+    mediaType: media.mediaType === 'video' ? 'video' : 'image',
+    alt: asText(media.alt) || `Mídia ${index + 1}`,
+  }
+}
+
+function normalizeBlogPost(post: Partial<BlogPost>): BlogPost {
+  const legacyMedia =
+    asText(post.image) && !post.media?.length
+      ? [
+          {
+            id: crypto.randomUUID(),
+            url: asText(post.image),
+            mediaType: (post.mediaType === 'video' ? 'video' : 'image') as BlogMedia['mediaType'],
+            alt: asText(post.title),
+          },
+        ]
+      : []
+  const media = (post.media ?? legacyMedia)
+    .map((item, index) => normalizeBlogMedia(item, index))
+    .filter(Boolean) as BlogMedia[]
+  const cover = media[0]
+
+  return {
+    id: asText(post.id) || crypto.randomUUID(),
+    title: asText(post.title) || 'Post',
+    excerpt: asText(post.excerpt),
+    content: asText(post.content),
+    image: cover?.url || asText(post.image),
+    mediaType: cover?.mediaType || post.mediaType || 'image',
+    media,
+    published: Boolean(post.published),
+    createdAt: asText(post.createdAt) || new Date().toISOString(),
+    source: post.source === 'instagram' ? 'instagram' : 'manual',
+    sourceId: asText(post.sourceId),
+    sourceUrl: asText(post.sourceUrl),
+  }
+}
+
 function normalizeState(state: Partial<StoredState>): StoredState {
   const incomingSettings = state.settings
   const incomingGateway = incomingSettings?.paymentGateway
@@ -180,6 +229,7 @@ function normalizeState(state: Partial<StoredState>): StoredState {
     orders: withOrderAutoCancellation(
       (state.orders ?? defaultState.orders).map(normalizeOrder),
     ),
+    blogPosts: (state.blogPosts ?? defaultState.blogPosts).map(normalizeBlogPost),
     settings: {
       ...seedStoreSettings,
       ...incomingSettings,

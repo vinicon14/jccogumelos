@@ -2,8 +2,13 @@ import { ArrowRight, Camera, MessageCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { BrandMark } from '../components/BrandMark'
 import { contact } from '../config/contact'
+import { useStore } from '../context/useStore'
+import { buildWhatsAppUrl, markWhatsAppSiteEntry } from '../utils/whatsapp'
 
 export function LandingPage() {
+  const { settings } = useStore()
+  const whatsAppUrl = buildWhatsAppUrl(settings.whatsapp) || contact.whatsAppUrl
+
   return (
     <section className="landing-page">
       <div className="landing-nav">
@@ -29,12 +34,13 @@ export function LandingPage() {
             </Link>
             <a
               className="secondary-button"
-              href={contact.instagramUrl}
+              href={whatsAppUrl || contact.instagramUrl}
+              onClick={whatsAppUrl ? markWhatsAppSiteEntry : undefined}
               target="_blank"
               rel="noreferrer"
             >
-              <Camera size={18} />
-              Instagram
+              {whatsAppUrl ? <MessageCircle size={18} /> : <Camera size={18} />}
+              {whatsAppUrl ? 'WhatsApp' : 'Instagram'}
             </a>
           </div>
         </div>
@@ -49,8 +55,8 @@ export function LandingPage() {
           Instagram
         </span>
         <span>
-          <MessageCircle size={16} />
-          Josaninha
+          {whatsAppUrl ? <MessageCircle size={16} /> : <Camera size={16} />}
+          {whatsAppUrl ? 'WhatsApp' : 'Josaninha'}
         </span>
       </div>
     </section>

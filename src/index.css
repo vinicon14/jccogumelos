@@ -1668,6 +1668,50 @@ td {
   object-fit: cover;
 }
 
+.blog-media-gallery {
+  position: relative;
+  display: grid;
+  gap: 0.35rem;
+  overflow: hidden;
+  background: #ece7de;
+}
+
+.blog-media-gallery.single {
+  display: block;
+}
+
+.blog-media-gallery.multi {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.blog-media-gallery .blog-media-item {
+  aspect-ratio: 16 / 10;
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+}
+
+.blog-media-gallery.multi .blog-media-item:first-child {
+  grid-row: span 2;
+  aspect-ratio: auto;
+}
+
+.blog-media-gallery.compact .blog-media-item {
+  min-height: 130px;
+}
+
+.blog-media-count {
+  position: absolute;
+  bottom: 0.6rem;
+  right: 0.6rem;
+  border-radius: 999px;
+  background: rgba(32, 27, 23, 0.8);
+  padding: 0.28rem 0.52rem;
+  color: white;
+  font-size: 0.68rem;
+  font-weight: 1000;
+}
+
 .blog-card div {
   padding: 1rem;
 }
@@ -2391,6 +2435,56 @@ button:disabled,
 .blog-photo video {
   height: 108px;
   min-height: 108px;
+}
+
+.instagram-import-panel {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+  border: 1px solid rgba(35, 61, 47, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.68);
+  padding: 0.65rem;
+}
+
+@media (min-width: 820px) {
+  .instagram-import-panel {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    align-items: end;
+  }
+
+  .instagram-import-panel .form-success,
+  .instagram-import-panel .form-error {
+    grid-column: 1 / -1;
+  }
+}
+
+.admin-inline-action {
+  min-height: 2.15rem;
+  padding: 0.42rem 0.68rem;
+  font-size: 0.76rem;
+}
+
+.admin-blog-media-list,
+.admin-blog-media-fields {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.admin-blog-media-row {
+  display: grid;
+  gap: 0.5rem;
+  border: 1px solid rgba(54, 48, 40, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.68);
+  padding: 0.5rem;
+}
+
+@media (min-width: 760px) {
+  .admin-blog-media-row {
+    grid-template-columns: 112px minmax(0, 1fr);
+    align-items: start;
+  }
 }
 
 .admin-edit-section .field-label input[type='file'] {

@@ -34,6 +34,7 @@ import { HomePage } from './pages/HomePage'
 import { LandingPage } from './pages/LandingPage'
 import { LoginPage } from './pages/LoginPage'
 import { RegisterPage } from './pages/RegisterPage'
+import { buildWhatsAppUrl, markWhatsAppSiteEntry } from './utils/whatsapp'
 
 const navItems = [
   { to: '/loja', label: 'Início' },
@@ -82,7 +83,7 @@ function App() {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const { itemCount } = useCart()
   const { user, isAdmin, logout } = useAuth()
-  const { notifications, setNotifications } = useStore()
+  const { notifications, settings, setNotifications } = useStore()
   const location = useLocation()
   const publicPage =
     location.pathname === '/' ||
@@ -100,6 +101,7 @@ function App() {
   const unreadNotifications = visibleNotifications.filter(
     (notification) => !notification.read,
   ).length
+  const whatsAppUrl = buildWhatsAppUrl(settings.whatsapp) || contact.whatsAppUrl
 
   useEffect(() => {
     document.title = 'JC Cogumelos'
@@ -233,10 +235,11 @@ function App() {
                 )}
               </div>
             )}
-            {contact.whatsAppUrl ? (
+            {whatsAppUrl ? (
               <a
                 className="hidden items-center gap-2 rounded-[8px] bg-[#28513c] px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#1f3f2f] sm:inline-flex"
-                href={contact.whatsAppUrl}
+                href={whatsAppUrl}
+                onClick={markWhatsAppSiteEntry}
                 target="_blank"
                 rel="noreferrer"
               >
@@ -359,7 +362,11 @@ function App() {
               Canais
             </strong>
             <div className="grid gap-2 text-sm text-[#d9c6ad]">
-              {contact.whatsAppUrl && <span>WhatsApp oficial</span>}
+              {whatsAppUrl && (
+                <a href={whatsAppUrl} onClick={markWhatsAppSiteEntry} target="_blank" rel="noreferrer">
+                  WhatsApp oficial
+                </a>
+              )}
               <a href={contact.instagramUrl} target="_blank" rel="noreferrer">
                 Instagram: {contact.instagramHandle}
               </a>

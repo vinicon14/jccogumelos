@@ -10,9 +10,9 @@ import {
   Camera,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { BlogMediaGallery } from '../components/BlogMediaGallery'
 import { ProductCard } from '../components/ProductCard'
 import { BrandMark } from '../components/BrandMark'
-import { MediaPreview } from '../components/MediaPreview'
 import { contact } from '../config/contact'
 import { useAuth } from '../context/useAuth'
 import { useStore } from '../context/useStore'
@@ -22,6 +22,7 @@ import {
   createCustomerSubscription,
   createSubscriptionPaymentOrder,
 } from '../utils/subscriptions'
+import { buildWhatsAppUrl, markWhatsAppSiteEntry } from '../utils/whatsapp'
 
 interface HomePageProps {
   focus?: 'assinaturas'
@@ -59,12 +60,14 @@ export function HomePage({ focus }: HomePageProps) {
     orders,
     blogPosts,
     notifications,
+    settings,
     setCustomerSubscriptions,
     setOrders,
     setNotifications,
   } = useStore()
   const featured = products.filter((product) => product.bestSeller || product.isNew).slice(0, 3)
   const publishedPosts = blogPosts.filter((post) => post.published)
+  const whatsAppUrl = buildWhatsAppUrl(settings.whatsapp) || contact.whatsAppUrl
 
   function handleSubscribe(planId: string) {
     if (!user) {
@@ -124,11 +127,19 @@ export function HomePage({ focus }: HomePageProps) {
               </Link>
               <a
                 className="secondary-button"
-                href={contact.instagramUrl}
+                href={whatsAppUrl || contact.instagramUrl}
+                onClick={whatsAppUrl ? markWhatsAppSiteEntry : undefined}
                 target="_blank"
                 rel="noreferrer"
               >
-                Ver Instagram
+                {whatsAppUrl ? (
+                  <>
+                    <MessageCircle size={18} />
+                    Falar no WhatsApp
+                  </>
+                ) : (
+                  'Ver Instagram'
+                )}
               </a>
             </div>
           </div>
@@ -252,13 +263,12 @@ export function HomePage({ focus }: HomePageProps) {
             <div className="blog-grid">
               {publishedPosts.slice(0, 3).map((post) => (
                 <article className="blog-card" key={post.id}>
-                  {post.image && (
-                    <MediaPreview
-                      src={post.image}
-                      alt={post.title}
-                      mediaType={post.mediaType}
-                    />
-                  )}
+                  <BlogMediaGallery
+                    compact
+                    media={post.media}
+                    fallback={{ src: post.image, mediaType: post.mediaType, alt: post.title }}
+                    title={post.title}
+                  />
                   <div>
                     <CheckCircle2 size={20} />
                     <h3>{post.title}</h3>
@@ -280,10 +290,11 @@ export function HomePage({ focus }: HomePageProps) {
           <p className="eyebrow">Atendimento rápido</p>
           <h2>Escolha com ajuda, compre sem complicar.</h2>
         </div>
-        {contact.whatsAppUrl ? (
+        {whatsAppUrl ? (
           <a
             className="primary-button"
-            href={contact.whatsAppUrl}
+            href={whatsAppUrl}
+            onClick={markWhatsAppSiteEntry}
             target="_blank"
             rel="noreferrer"
           >

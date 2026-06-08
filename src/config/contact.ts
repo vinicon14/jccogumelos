@@ -1,4 +1,6 @@
-const rawWhatsAppNumber = import.meta.env.VITE_WHATSAPP_NUMBER?.replace(/\D/g, '') ?? ''
+import { buildWhatsAppUrl, normalizeWhatsAppNumber } from '../utils/whatsapp'
+
+const rawWhatsAppNumber = normalizeWhatsAppNumber(import.meta.env.VITE_WHATSAPP_NUMBER)
 const rawContactEmail = import.meta.env.VITE_CONTACT_EMAIL?.trim() ?? ''
 
 export const contact = {
@@ -6,9 +8,6 @@ export const contact = {
     import.meta.env.VITE_INSTAGRAM_URL?.trim() || 'https://www.instagram.com/jc_cogumelos/',
   instagramHandle: '@jc_cogumelos',
   contactEmail: rawContactEmail,
-  whatsAppUrl: rawWhatsAppNumber
-    ? `https://wa.me/${rawWhatsAppNumber}?text=${encodeURIComponent(
-        'Olá Josaninha, quero comprar cogumelos',
-      )}`
-    : '',
+  whatsAppNumber: rawWhatsAppNumber,
+  whatsAppUrl: buildWhatsAppUrl(rawWhatsAppNumber),
 }

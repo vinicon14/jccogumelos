@@ -148,8 +148,19 @@ export interface BlogPost {
   content: string
   image: string
   mediaType?: MediaType
+  media?: BlogMedia[]
   published: boolean
   createdAt: string
+  source?: 'manual' | 'instagram'
+  sourceId?: string
+  sourceUrl?: string
+}
+
+export interface BlogMedia {
+  id: string
+  url: string
+  mediaType: MediaType
+  alt?: string
 }
 
 export interface StoreNotification {
@@ -206,6 +217,7 @@ export interface StoreSettings {
   whatsappAutoEnabled: boolean
   assistantBehavior: string
   businessHours: string
+  instagramUserId: string
   paymentGateway: PaymentGatewayConfig
 }
 

@@ -14,6 +14,12 @@ const allowedSecrets = {
       return token.startsWith('sk-') && token.length >= 40
     },
   },
+  INSTAGRAM_ACCESS_TOKEN: {
+    label: 'Token Instagram',
+    validate(value) {
+      return String(value || '').trim().length >= 30
+    },
+  },
 }
 
 async function readBody(request) {

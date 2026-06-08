@@ -3,6 +3,7 @@ import {
   Boxes,
   CalendarClock,
   FilePlus2,
+  DownloadCloud,
   Image as ImageIcon,
   KeyRound,
   Mail,
@@ -28,6 +29,7 @@ import { useAuth } from '../context/useAuth'
 import { useStore } from '../context/useStore'
 import type {
   BlogPost,
+  BlogMedia,
   Coupon,
   CustomerSubscription,
   Order,
@@ -119,8 +121,19 @@ function createBlogPost(): BlogPost {
     content: '',
     image: '',
     mediaType: 'image',
+    media: [],
     published: false,
     createdAt: new Date().toISOString(),
+    source: 'manual',
+  }
+}
+
+function createPostMedia(url = '', mediaType: BlogMedia['mediaType'] = 'image'): BlogMedia {
+  return {
+    id: crypto.randomUUID(),
+    url,
+    mediaType,
+    alt: '',
   }
 }
 
@@ -147,10 +160,14 @@ export function AdminPage() {
   const [mediaError, setMediaError] = useState('')
   const [mercadoPagoTokenDraft, setMercadoPagoTokenDraft] = useState('')
   const [openAiKeyDraft, setOpenAiKeyDraft] = useState('')
+  const [instagramTokenDraft, setInstagramTokenDraft] = useState('')
   const [savingSecretKey, setSavingSecretKey] = useState('')
   const [secretFeedbackKey, setSecretFeedbackKey] = useState('')
   const [secretMessage, setSecretMessage] = useState('')
   const [secretError, setSecretError] = useState('')
+  const [importingInstagram, setImportingInstagram] = useState(false)
+  const [instagramImportMessage, setInstagramImportMessage] = useState('')
+  const [instagramImportError, setInstagramImportError] = useState('')
   const [customerSearch, setCustomerSearch] = useState('')
   const [registeredCustomers, setRegisteredCustomers] = useState(() => readStoredCustomers())
 
@@ -281,8 +298,18 @@ export function AdminPage() {
 
   function updatePost(id: string, patch: Partial<BlogPost>) {
     const currentPost = blogPosts.find((post) => post.id === id)
+    const media = patch.media ?? currentPost?.media
+    const cover = media?.find((item) => item.url)
+    const normalizedPatch = cover
+      ? {
+          ...patch,
+          image: patch.image ?? cover.url,
+          mediaType: patch.mediaType ?? cover.mediaType,
+        }
+      : patch
+
     setBlogPosts(
-      blogPosts.map((post) => (post.id === id ? { ...post, ...patch } : post)),
+      blogPosts.map((post) => (post.id === id ? { ...post, ...normalizedPatch } : post)),
     )
 
     if (patch.published && currentPost && !currentPost.published) {
@@ -303,6 +330,45 @@ export function AdminPage() {
 
   function deletePost(id: string) {
     setBlogPosts(blogPosts.filter((post) => post.id !== id))
+  }
+
+  function updatePostMedia(postId: string, mediaId: string, patch: Partial<BlogMedia>) {
+    const post = blogPosts.find((item) => item.id === postId)
+
+    if (!post) {
+      return
+    }
+
+    const media = (post.media ?? []).map((item) =>
+      item.id === mediaId ? { ...item, ...patch } : item,
+    )
+
+    updatePost(postId, { media })
+  }
+
+  function addPostMedia(postId: string) {
+    const post = blogPosts.find((item) => item.id === postId)
+
+    if (!post) {
+      return
+    }
+
+    updatePost(postId, { media: [...(post.media ?? []), createPostMedia()] })
+  }
+
+  function deletePostMedia(postId: string, mediaId: string) {
+    const post = blogPosts.find((item) => item.id === postId)
+
+    if (!post) {
+      return
+    }
+
+    const media = (post.media ?? []).filter((item) => item.id !== mediaId)
+    updatePost(postId, {
+      media,
+      image: media[0]?.url || '',
+      mediaType: media[0]?.mediaType || 'image',
+    })
   }
 
   function updatePaymentGateway(patch: Partial<PaymentGatewayConfig>) {
@@ -329,17 +395,86 @@ export function AdminPage() {
     }
   }
 
-  async function handlePostUpload(id: string, file?: File) {
-    if (!file) {
+  async function handlePostUpload(id: string, files?: File[]) {
+    if (!files?.length) {
       return
     }
 
     try {
       setMediaError('')
-      const media = await readMediaFile(file)
-      updatePost(id, { image: media.url, mediaType: media.mediaType })
+      const currentPost = blogPosts.find((post) => post.id === id)
+      const uploadedMedia = await Promise.all(files.map((file) => readMediaFile(file)))
+      const media = [
+        ...(currentPost?.media ?? []),
+        ...uploadedMedia.map((item) => createPostMedia(item.url, item.mediaType)),
+      ]
+      updatePost(id, {
+        image: media[0]?.url || '',
+        mediaType: media[0]?.mediaType || 'image',
+        media,
+      })
     } catch (error) {
       setMediaError(error instanceof Error ? error.message : 'Upload não concluído.')
+    }
+  }
+
+  async function importInstagramPosts() {
+    if (!user?.adminToken) {
+      setInstagramImportError('Sessão administrativa expirada. Entre novamente.')
+      setInstagramImportMessage('')
+      return
+    }
+
+    setImportingInstagram(true)
+    setInstagramImportError('')
+    setInstagramImportMessage('')
+
+    try {
+      const response = await fetch('/api/instagram-import', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${user.adminToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: settings.instagramUserId,
+          limit: 15,
+        }),
+      })
+      const data = (await response.json()) as {
+        posts?: BlogPost[]
+        error?: string
+        code?: string
+      }
+
+      if (!response.ok || !data.posts) {
+        throw new Error(
+          data.error ||
+            (data.code === 'missing_instagram_access_token'
+              ? 'Configure o token Instagram na Vercel antes de importar.'
+              : 'Não foi possível importar o Instagram.'),
+        )
+      }
+
+      const importedKeys = new Set(
+        blogPosts.map((post) => post.sourceId || post.sourceUrl || post.id),
+      )
+      const newPosts = data.posts.filter(
+        (post) => !importedKeys.has(post.sourceId || post.sourceUrl || post.id),
+      )
+
+      setBlogPosts([...newPosts, ...blogPosts])
+      setInstagramImportMessage(
+        newPosts.length
+          ? `${newPosts.length} post(s) importado(s) do Instagram.`
+          : 'Os últimos posts do Instagram já estavam no blog.',
+      )
+    } catch (error) {
+      setInstagramImportError(
+        error instanceof Error ? error.message : 'Não foi possível importar o Instagram.',
+      )
+    } finally {
+      setImportingInstagram(false)
     }
   }
 
@@ -386,6 +521,10 @@ export function AdminPage() {
 
       if (key === 'OPENAI_API_KEY') {
         setOpenAiKeyDraft('')
+      }
+
+      if (key === 'INSTAGRAM_ACCESS_TOKEN') {
+        setInstagramTokenDraft('')
       }
 
       setSecretMessage(
@@ -946,8 +1085,17 @@ export function AdminPage() {
           <FilePlus2 size={22} />
           <div>
             <h2>Blog Josaninha</h2>
-            <p>Crie, edite, publique ou tire posts do ar.</p>
+            <p>Crie posts, use carrossel de mídias ou importe o Instagram.</p>
           </div>
+          <button
+            className="secondary-button admin-inline-action"
+            type="button"
+            onClick={importInstagramPosts}
+            disabled={importingInstagram}
+          >
+            <DownloadCloud size={16} />
+            {importingInstagram ? 'Importando...' : 'Importar 15 do Instagram'}
+          </button>
           <button
             className="icon-small ml-auto"
             type="button"
@@ -957,6 +1105,60 @@ export function AdminPage() {
           >
             <Plus size={18} />
           </button>
+        </div>
+        <div className="instagram-import-panel">
+          <label className="field-label">
+            ID da conta Instagram
+            <input
+              value={settings.instagramUserId}
+              placeholder="Opcional: ID da conta profissional no Meta"
+              onChange={(event) =>
+                setSettings((current) => ({
+                  ...current,
+                  instagramUserId: event.target.value,
+                }))
+              }
+            />
+          </label>
+          <label className="field-label">
+            Token Instagram
+            <input
+              type="password"
+              value={instagramTokenDraft}
+              placeholder="Cole o token do Instagram Graph API"
+              onChange={(event) => setInstagramTokenDraft(event.target.value)}
+            />
+            <span className="field-hint">
+              Ao salvar, o token vai para INSTAGRAM_ACCESS_TOKEN na Vercel.
+            </span>
+          </label>
+          <div className="secret-action-row">
+            <button
+              className="secondary-button"
+              type="button"
+              disabled={savingSecretKey === 'INSTAGRAM_ACCESS_TOKEN'}
+              onClick={() =>
+                saveAdminSecret(
+                  'INSTAGRAM_ACCESS_TOKEN',
+                  instagramTokenDraft,
+                  'Token Instagram',
+                )
+              }
+            >
+              <Save size={16} />
+              {savingSecretKey === 'INSTAGRAM_ACCESS_TOKEN'
+                ? 'Salvando...'
+                : 'Salvar token Instagram'}
+            </button>
+          </div>
+          {secretFeedbackKey === 'INSTAGRAM_ACCESS_TOKEN' && secretMessage && (
+            <p className="form-success">{secretMessage}</p>
+          )}
+          {secretFeedbackKey === 'INSTAGRAM_ACCESS_TOKEN' && secretError && (
+            <p className="form-error">{secretError}</p>
+          )}
+          {instagramImportMessage && <p className="form-success">{instagramImportMessage}</p>}
+          {instagramImportError && <p className="form-error">{instagramImportError}</p>}
         </div>
         {blogPosts.length === 0 ? (
           <div className="empty-state compact">
@@ -976,60 +1178,100 @@ export function AdminPage() {
                 >
                   <Trash2 size={17} />
                 </button>
-                <div className="admin-product-photo blog-photo">
-                  {post.image ? (
-                    <MediaPreview
-                      src={post.image}
-                      alt={post.title}
-                      mediaType={post.mediaType}
-                      controls={post.mediaType === 'video'}
-                    />
-                  ) : (
-                    <ImageIcon size={28} />
+                <div className="admin-blog-media-list">
+                  {(post.media && post.media.length > 0
+                    ? post.media
+                    : post.image
+                      ? [createPostMedia(post.image, post.mediaType ?? 'image')]
+                      : []
+                  ).map((media) => (
+                    <div className="admin-blog-media-row" key={media.id}>
+                      <div className="admin-product-photo blog-photo">
+                        {media.url ? (
+                          <MediaPreview
+                            src={media.url}
+                            alt={media.alt || post.title}
+                            mediaType={media.mediaType}
+                            controls={media.mediaType === 'video'}
+                          />
+                        ) : (
+                          <ImageIcon size={28} />
+                        )}
+                      </div>
+                      <div className="admin-blog-media-fields">
+                        <label className="field-label">
+                          URL da mídia
+                          <input
+                            value={media.url}
+                            onChange={(event) =>
+                              updatePostMedia(post.id, media.id, {
+                                url: event.target.value,
+                                mediaType: inferMediaType(
+                                  event.target.value,
+                                  media.mediaType,
+                                ),
+                              })
+                            }
+                          />
+                        </label>
+                        <div className="admin-field-row compact">
+                          <label className="field-label">
+                            Tipo
+                            <select
+                              value={media.mediaType}
+                              onChange={(event) =>
+                                updatePostMedia(post.id, media.id, {
+                                  mediaType: event.target.value as BlogMedia['mediaType'],
+                                })
+                              }
+                            >
+                              <option value="image">Imagem</option>
+                              <option value="video">Vídeo</option>
+                            </select>
+                          </label>
+                          <button
+                            className="secondary-button danger"
+                            type="button"
+                            onClick={() => deletePostMedia(post.id, media.id)}
+                          >
+                            <Trash2 size={15} />
+                            Remover mídia
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {!(post.media?.length || post.image) && (
+                    <div className="empty-state compact">
+                      <h2>Nenhuma mídia adicionada.</h2>
+                    </div>
                   )}
                 </div>
                 <label className="field-label">
-                  Upload de foto ou vídeo
+                  Upload de fotos ou vídeos
                   <input
+                    multiple
                     type="file"
                     accept="image/*,video/*"
                     onChange={(event) => {
-                      handlePostUpload(post.id, event.currentTarget.files?.[0])
+                      handlePostUpload(
+                        post.id,
+                        event.currentTarget.files
+                          ? Array.from(event.currentTarget.files)
+                          : undefined,
+                      )
                       event.currentTarget.value = ''
                     }}
                   />
                 </label>
-                <div className="admin-field-row compact">
-                  <label className="field-label">
-                    URL da mídia
-                    <input
-                      value={post.image}
-                      onChange={(event) =>
-                        updatePost(post.id, {
-                          image: event.target.value,
-                          mediaType: inferMediaType(
-                            event.target.value,
-                            post.mediaType ?? 'image',
-                          ),
-                        })
-                      }
-                    />
-                  </label>
-                  <label className="field-label">
-                    Tipo
-                    <select
-                      value={post.mediaType ?? 'image'}
-                      onChange={(event) =>
-                        updatePost(post.id, {
-                          mediaType: event.target.value as BlogPost['mediaType'],
-                        })
-                      }
-                    >
-                      <option value="image">Imagem</option>
-                      <option value="video">Vídeo</option>
-                    </select>
-                  </label>
-                </div>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() => addPostMedia(post.id)}
+                >
+                  <Plus size={15} />
+                  Adicionar mídia por URL
+                </button>
                 <label className="field-label">
                   Título
                   <input

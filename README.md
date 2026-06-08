@@ -43,6 +43,25 @@ Configure os canais públicos sem editar código:
 Se `VITE_WHATSAPP_NUMBER` estiver vazio, a interface usa o Instagram como canal
 principal e não exibe número falso.
 
+Os botões de WhatsApp do site abrem uma mensagem com o código `SITE-JC`. Use
+esse código no atendimento automático para responder somente contatos que vieram
+pelo botão do site.
+
+## Blog Josaninha e Instagram
+
+O Blog Josaninha aceita posts com várias mídias, incluindo fotos e vídeos no
+mesmo post. No painel administrativo, é possível fazer upload de vários arquivos,
+adicionar mídias por URL ou importar os últimos 15 posts do Instagram.
+
+Para importar do Instagram, configure:
+
+- `INSTAGRAM_ACCESS_TOKEN`: token privado da Instagram Graph API.
+- `INSTAGRAM_USER_ID`: opcional; ID da conta profissional/Business no Meta.
+
+Também é possível colar o token Instagram pelo painel admin. O valor é enviado
+para a Vercel como `INSTAGRAM_ACCESS_TOKEN`, desde que `VERCEL_API_TOKEN` esteja
+configurado.
+
 ## Clientes e endereços
 
 O cadastro coleta telefone, CEP, rua, bairro, cidade e UF. O formulário tenta

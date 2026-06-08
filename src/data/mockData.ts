@@ -213,6 +213,7 @@ export const storeSettings: StoreSettings = {
   assistantBehavior:
     'Atender com tom acolhedor, gourmet e objetivo. Recomendar produtos, receitas e assinaturas.',
   businessHours: '',
+  instagramUserId: '',
   paymentGateway: {
     enabled: true,
     provider: 'Mercado Pago',
