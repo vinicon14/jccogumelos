@@ -87,9 +87,6 @@ export function RegisterPage() {
 
   return (
     <section className="login-page">
-      <Link className="landing-back" to="/">
-        JC Cogumelos
-      </Link>
       <form className="login-card reveal-up" onSubmit={handleSubmit}>
         <div className="auth-brand-stage">
           <BrandMark />
