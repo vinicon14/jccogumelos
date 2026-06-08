@@ -24,7 +24,7 @@ import {
   UsersRound,
   XCircle,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { MediaPreview } from '../components/MediaPreview'
 import { useAuth } from '../context/useAuth'
 import { useStore } from '../context/useStore'
@@ -218,6 +218,9 @@ export function AdminPage() {
   const [instagramImportError, setInstagramImportError] = useState('')
   const [customerSearch, setCustomerSearch] = useState('')
   const [registeredCustomers, setRegisteredCustomers] = useState(() => readStoredCustomers())
+  const [activeAdminPage, setActiveAdminPage] = useState('admin-overview')
+  const adminPageFrameRef = useRef<HTMLDivElement | null>(null)
+  const adminPageScrollPositions = useRef<Record<string, number>>({})
 
   const monthSales = orders
     .filter((order) => order.status !== 'cancelado')
@@ -274,6 +277,31 @@ export function AdminPage() {
       window.removeEventListener('focus', syncCustomers)
     }
   }, [])
+
+  useEffect(() => {
+    const frame = adminPageFrameRef.current
+
+    if (!frame) {
+      return
+    }
+
+    window.requestAnimationFrame(() => {
+      frame.scrollTo({
+        top: adminPageScrollPositions.current[activeAdminPage] ?? 0,
+        left: 0,
+      })
+    })
+  }, [activeAdminPage])
+
+  function selectAdminPage(pageId: string) {
+    const frame = adminPageFrameRef.current
+
+    if (frame) {
+      adminPageScrollPositions.current[activeAdminPage] = frame.scrollTop
+    }
+
+    setActiveAdminPage(pageId)
+  }
 
   function updateProduct(id: string, patch: Partial<Product>) {
     setProducts(
@@ -814,18 +842,28 @@ export function AdminPage() {
           const Icon = item.icon
 
           return (
-            <a href={`#${item.id}`} key={item.id}>
+            <button
+              className={activeAdminPage === item.id ? 'active' : ''}
+              type="button"
+              key={item.id}
+              onClick={() => selectAdminPage(item.id)}
+            >
               <Icon size={16} />
               <span>{item.label}</span>
               {typeof item.count === 'number' && (
                 <small>{item.count}</small>
               )}
-            </a>
+            </button>
           )
         })}
       </nav>
 
-      <div className="dashboard-cards" id="admin-overview">
+      <div className="admin-page-frame" ref={adminPageFrameRef}>
+      <div
+        className="dashboard-cards admin-page-panel"
+        id="admin-overview"
+        hidden={activeAdminPage !== 'admin-overview'}
+      >
         <article className="metric-card warm">
           <ShoppingCart size={24} />
           <span>Vendas do mês</span>
@@ -864,7 +902,11 @@ export function AdminPage() {
         </article>
       </div>
 
-      <section className="table-panel admin-edit-section" id="admin-customers">
+      <section
+        className="table-panel admin-edit-section admin-page-panel"
+        id="admin-customers"
+        hidden={activeAdminPage !== 'admin-customers'}
+      >
         <div className="admin-section-title">
           <UsersRound size={22} />
           <div>
@@ -920,7 +962,11 @@ export function AdminPage() {
         )}
       </section>
 
-      <section className="table-panel admin-edit-section" id="admin-wholesale">
+      <section
+        className="table-panel admin-edit-section admin-page-panel"
+        id="admin-wholesale"
+        hidden={activeAdminPage !== 'admin-wholesale'}
+      >
         <div className="admin-section-title">
           <Hash size={22} />
           <div>
@@ -1047,7 +1093,11 @@ export function AdminPage() {
         )}
       </section>
 
-      <section className="table-panel admin-edit-section" id="admin-products">
+      <section
+        className="table-panel admin-edit-section admin-page-panel"
+        id="admin-products"
+        hidden={activeAdminPage !== 'admin-products'}
+      >
         <div className="admin-section-title">
           <Boxes size={22} />
           <div>
@@ -1261,7 +1311,11 @@ export function AdminPage() {
         </div>
       </section>
 
-      <section className="table-panel admin-edit-section" id="admin-plans">
+      <section
+        className="table-panel admin-edit-section admin-page-panel"
+        id="admin-plans"
+        hidden={activeAdminPage !== 'admin-plans'}
+      >
         <div className="admin-section-title">
           <Percent size={22} />
           <div>
@@ -1325,7 +1379,11 @@ export function AdminPage() {
         </div>
       </section>
 
-      <section className="table-panel admin-edit-section" id="admin-subscriptions">
+      <section
+        className="table-panel admin-edit-section admin-page-panel"
+        id="admin-subscriptions"
+        hidden={activeAdminPage !== 'admin-subscriptions'}
+      >
         <div className="admin-section-title">
           <BadgeCheck size={22} />
           <div>
@@ -1480,7 +1538,11 @@ export function AdminPage() {
         )}
       </section>
 
-      <section className="table-panel admin-edit-section" id="admin-blog">
+      <section
+        className="table-panel admin-edit-section admin-page-panel"
+        id="admin-blog"
+        hidden={activeAdminPage !== 'admin-blog'}
+      >
         <div className="admin-section-title">
           <FilePlus2 size={22} />
           <div>
@@ -1709,8 +1771,17 @@ export function AdminPage() {
         )}
       </section>
 
-      <div className="admin-layout">
-        <section className="table-panel admin-edit-section" id="admin-orders">
+      <div
+        className="admin-layout admin-page-panel"
+        hidden={
+          activeAdminPage !== 'admin-orders' && activeAdminPage !== 'admin-settings'
+        }
+      >
+        <section
+          className="table-panel admin-edit-section"
+          id="admin-orders"
+          hidden={activeAdminPage !== 'admin-orders'}
+        >
           <div className="admin-section-title">
             <ShoppingCart size={22} />
             <div>
@@ -1793,7 +1864,11 @@ export function AdminPage() {
           )}
         </section>
 
-        <aside className="settings-panel admin-edit-section" id="admin-settings">
+        <aside
+          className="settings-panel admin-edit-section"
+          id="admin-settings"
+          hidden={activeAdminPage !== 'admin-settings'}
+        >
           <div className="admin-section-title">
             <Settings size={22} />
             <div>
@@ -2248,7 +2323,11 @@ export function AdminPage() {
         </aside>
       </div>
 
-      <section className="table-panel admin-edit-section" id="admin-coupons">
+      <section
+        className="table-panel admin-edit-section admin-page-panel"
+        id="admin-coupons"
+        hidden={activeAdminPage !== 'admin-coupons'}
+      >
         <div className="admin-section-title">
           <MessageCircle size={22} />
           <div>
@@ -2312,6 +2391,7 @@ export function AdminPage() {
           </div>
         )}
       </section>
+      </div>
     </section>
   )
 }

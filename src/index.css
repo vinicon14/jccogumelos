@@ -2276,7 +2276,7 @@ button:disabled,
   display: none;
 }
 
-.admin-page-nav a {
+.admin-page-nav button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2287,6 +2287,7 @@ button:disabled,
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.64);
   color: #3b2a20;
+  cursor: pointer;
   padding: 0.5rem 0.68rem;
   font-size: 0.78rem;
   font-weight: 1000;
@@ -2298,7 +2299,13 @@ button:disabled,
     color 160ms ease;
 }
 
-.admin-page-nav a:hover {
+.admin-page-nav button:focus-visible {
+  outline: 2px solid rgba(35, 61, 47, 0.42);
+  outline-offset: 2px;
+}
+
+.admin-page-nav button:hover,
+.admin-page-nav button.active {
   transform: translateY(-1px);
   border-color: rgba(35, 61, 47, 0.28);
   background: #233d2f;
@@ -2321,9 +2328,59 @@ button:disabled,
   line-height: 1;
 }
 
-.admin-page-nav a:hover small {
+.admin-page-nav button:hover small,
+.admin-page-nav button.active small {
   background: rgba(255, 255, 255, 0.18);
   color: #fffaf2;
+}
+
+.admin-page-frame {
+  display: grid;
+  align-content: start;
+  min-height: 28rem;
+  height: min(72rem, calc(100dvh - 17.5rem));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 0.22rem;
+  scrollbar-color: rgba(201, 83, 36, 0.45) transparent;
+}
+
+.admin-page-frame > [hidden],
+.admin-page-frame [hidden] {
+  display: none !important;
+}
+
+.admin-page-panel {
+  animation: adminPageFade 180ms ease both;
+}
+
+.admin-page-frame .admin-edit-section,
+.admin-page-frame .admin-layout {
+  margin-top: 0;
+}
+
+.admin-page-frame .admin-layout {
+  grid-template-columns: 1fr;
+}
+
+@keyframes adminPageFade {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 760px) {
+  .admin-page-frame {
+    min-height: 24rem;
+    height: calc(100dvh - 14.5rem);
+    padding-right: 0;
+  }
 }
 
 .admin-edit-section.table-panel,
