@@ -8,6 +8,7 @@ import type {
   StoreSettings,
   StoreNotification,
   SubscriptionPlan,
+  WholesalePreorder,
 } from '../types'
 
 export interface StoreContextValue {
@@ -16,6 +17,7 @@ export interface StoreContextValue {
   customerSubscriptions: CustomerSubscription[]
   coupons: Coupon[]
   orders: Order[]
+  wholesalePreorders: WholesalePreorder[]
   blogPosts: BlogPost[]
   notifications: StoreNotification[]
   settings: StoreSettings
@@ -24,6 +26,7 @@ export interface StoreContextValue {
   setCustomerSubscriptions: (subscriptions: CustomerSubscription[]) => void
   setCoupons: (coupons: Coupon[]) => void
   setOrders: (orders: Order[]) => void
+  setWholesalePreorders: (preorders: WholesalePreorder[]) => void
   setBlogPosts: (posts: BlogPost[]) => void
   setNotifications: (notifications: StoreNotification[]) => void
   setSettings: (settings: SetStateAction<StoreSettings>) => void

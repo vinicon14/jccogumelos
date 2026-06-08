@@ -2828,3 +2828,140 @@ button:disabled,
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+.wholesale-queue-box {
+  display: grid;
+  gap: 0.55rem;
+  border: 1px solid rgba(35, 61, 47, 0.16);
+  border-radius: 8px;
+  background: rgba(35, 61, 47, 0.045);
+  padding: 0.68rem;
+}
+
+.wholesale-queue-box > div,
+.wholesale-queue-box label {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  color: #4d4238;
+  font-size: 0.78rem;
+  font-weight: 950;
+}
+
+.wholesale-queue-box strong,
+.wholesale-queue-box span {
+  display: block;
+}
+
+.wholesale-queue-box strong {
+  color: #233d2f;
+  font-size: 0.98rem;
+}
+
+.wholesale-queue-box span {
+  color: #6a6258;
+  font-size: 0.72rem;
+  line-height: 1.25;
+}
+
+.wholesale-queue-box input {
+  min-height: 2.1rem;
+  width: 5.4rem;
+  border: 1px solid rgba(54, 48, 40, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.86);
+  padding: 0.35rem 0.5rem;
+  color: #201b17;
+  font-weight: 950;
+}
+
+.wholesale-queue-button {
+  min-height: 2.2rem;
+  justify-content: center;
+  padding: 0.45rem 0.7rem;
+  font-size: 0.75rem;
+}
+
+.wholesale-queue-list,
+.wholesale-admin-grid {
+  gap: 0.58rem;
+}
+
+.wholesale-queue-card,
+.wholesale-admin-card {
+  position: relative;
+  border-color: rgba(35, 61, 47, 0.14);
+}
+
+.wholesale-queue-heading {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.wholesale-queue-heading img,
+.wholesale-queue-heading video {
+  height: 58px;
+  width: 58px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.wholesale-queue-heading strong,
+.wholesale-queue-heading span,
+.wholesale-queue-heading small {
+  display: block;
+}
+
+.wholesale-queue-heading strong {
+  color: #201b17;
+  font-size: 0.92rem;
+  line-height: 1.22;
+}
+
+.wholesale-queue-heading span {
+  margin-top: 0.14rem;
+  color: #6a6258;
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.wholesale-queue-heading small {
+  border-radius: 999px;
+  background: rgba(35, 61, 47, 0.1);
+  padding: 0.28rem 0.52rem;
+  color: #233d2f;
+  font-size: 0.72rem;
+  font-weight: 1000;
+  white-space: nowrap;
+}
+
+.wholesale-admin-card .admin-delete-button {
+  right: 0.35rem;
+  top: 0.35rem;
+}
+
+@media (max-width: 560px) {
+  .wholesale-queue-heading {
+    grid-template-columns: 52px minmax(0, 1fr);
+  }
+
+  .wholesale-queue-heading small {
+    justify-self: start;
+    grid-column: 2;
+  }
+
+  .wholesale-queue-box > div,
+  .wholesale-queue-box label {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .wholesale-queue-box input,
+  .wholesale-queue-button {
+    width: 100%;
+  }
+}

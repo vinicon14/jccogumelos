@@ -100,6 +100,17 @@ marcado como `pago`; se esse pedido expirar ou for cancelado, a assinatura vira
 No painel administrativo, assinaturas canceladas saem da gestão operacional. O
 cliente ainda consegue ver o histórico da própria assinatura em Minha conta.
 
+## Encomendas atacado
+
+Clientes com conta `Atacado` podem entrar na fila de encomenda direto no card do
+produto. A loja gera uma senha sequencial, mostra a posição na fila daquele
+produto e salva a encomenda no estado sincronizado do Supabase.
+
+Na página Minha conta, o atacadista acompanha status, quantidade, valor e pode
+cancelar uma encomenda ativa. No painel administrativo, a fila operacional mostra
+apenas encomendas `Na fila`, `Em produção` ou `Disponível`; ao marcar como
+`Atendida` ou `Cancelada`, ela sai da fila ativa.
+
 ## Login administrativo
 
 O admin entra pela mesma tela de login, mas a senha é validada em

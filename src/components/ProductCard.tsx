@@ -1,13 +1,83 @@
-import { Plus, Star } from 'lucide-react'
+import { Hash, Plus, Star } from 'lucide-react'
+import { useState } from 'react'
 import { MediaPreview } from './MediaPreview'
+import { useAuth } from '../context/useAuth'
 import { useCart } from '../context/useCart'
+import { useStore } from '../context/useStore'
 import { categoryLabels } from '../data/mockData'
 import type { Product } from '../types'
 import { formatCurrency } from '../utils/format'
+import {
+  createWholesalePreorder,
+  formatWholesaleQueueNumber,
+  getWholesaleQueuePosition,
+  isWholesaleQueueActive,
+} from '../utils/wholesalePreorders'
 
 export function ProductCard({ product }: { product: Product }) {
   const { addItem } = useCart()
+  const { user } = useAuth()
+  const {
+    notifications,
+    wholesalePreorders,
+    setNotifications,
+    setWholesalePreorders,
+  } = useStore()
+  const [wholesaleQuantity, setWholesaleQuantity] = useState(5)
   const soldOut = product.stock <= 0
+  const canWholesalePreorder =
+    user?.accountType === 'atacado' && Boolean(product.wholesalePrice)
+  const activeWholesalePreorder = canWholesalePreorder
+    ? wholesalePreorders.find(
+        (preorder) =>
+          preorder.customerId === user?.id &&
+          preorder.productId === product.id &&
+          isWholesaleQueueActive(preorder),
+      )
+    : undefined
+  const queuePosition = activeWholesalePreorder
+    ? getWholesaleQueuePosition(activeWholesalePreorder, wholesalePreorders)
+    : 0
+
+  function handleWholesalePreorder() {
+    if (!user || !canWholesalePreorder || activeWholesalePreorder) {
+      return
+    }
+
+    const preorder = createWholesalePreorder({
+      product,
+      user,
+      quantity: wholesaleQuantity,
+      preorders: wholesalePreorders,
+    })
+
+    setWholesalePreorders([preorder, ...wholesalePreorders])
+    setNotifications([
+      {
+        id: crypto.randomUUID(),
+        audience: 'admin',
+        title: 'Nova encomenda atacado',
+        message: `${user.name} entrou na fila ${formatWholesaleQueueNumber(
+          preorder.queueNumber,
+        )} para ${product.name}.`,
+        createdAt: preorder.createdAt,
+        read: false,
+        link: '/admin',
+      },
+      {
+        id: crypto.randomUUID(),
+        audience: 'customer',
+        title: 'Encomenda registrada',
+        message: `${product.name}: fila ${formatWholesaleQueueNumber(
+          preorder.queueNumber,
+        )}.`,
+        createdAt: preorder.createdAt,
+        read: false,
+        link: '/conta',
+      },
+      ...notifications,
+    ])
+  }
 
   return (
     <article className={`product-card ${soldOut ? 'product-card-disabled' : ''}`}>
@@ -78,6 +148,44 @@ export function ProductCard({ product }: { product: Product }) {
             <Plus size={20} />
           </button>
         </div>
+
+        {canWholesalePreorder && (
+          <div className="wholesale-queue-box">
+            {activeWholesalePreorder ? (
+              <div>
+                <strong>
+                  {formatWholesaleQueueNumber(activeWholesalePreorder.queueNumber)}
+                </strong>
+                <span>
+                  {queuePosition > 0
+                    ? `Posição ${queuePosition} na fila deste produto`
+                    : 'Encomenda finalizada'}
+                </span>
+              </div>
+            ) : (
+              <label>
+                Qtd. atacado
+                <input
+                  min={1}
+                  type="number"
+                  value={wholesaleQuantity}
+                  onChange={(event) =>
+                    setWholesaleQuantity(Math.max(1, Number(event.target.value) || 1))
+                  }
+                />
+              </label>
+            )}
+            <button
+              className="secondary-button wholesale-queue-button"
+              type="button"
+              disabled={Boolean(activeWholesalePreorder)}
+              onClick={handleWholesalePreorder}
+            >
+              <Hash size={16} />
+              {activeWholesalePreorder ? 'Na fila' : 'Entrar na fila atacado'}
+            </button>
+          </div>
+        )}
       </div>
     </article>
   )

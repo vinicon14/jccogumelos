@@ -2,6 +2,7 @@ import { Filter, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { ProductCard } from '../components/ProductCard'
 import { categoryLabels } from '../data/mockData'
+import { useAuth } from '../context/useAuth'
 import { useStore } from '../context/useStore'
 import type { ProductCategory } from '../types'
 
@@ -10,9 +11,10 @@ type SortFilter = 'destaques' | 'menor-preco' | 'maior-preco'
 
 export function CatalogPage() {
   const { products } = useStore()
+  const { user } = useAuth()
   const [category, setCategory] = useState<CategoryFilter>('todos')
   const [sort, setSort] = useState<SortFilter>('destaques')
-  const [onlyAvailable, setOnlyAvailable] = useState(true)
+  const [onlyAvailable, setOnlyAvailable] = useState(user?.accountType !== 'atacado')
   const [onlyBestSellers, setOnlyBestSellers] = useState(false)
   const [onlyNew, setOnlyNew] = useState(false)
   const [search, setSearch] = useState('')

@@ -2,9 +2,11 @@ import {
   BadgeCheck,
   CalendarClock,
   Gift,
+  Hash,
   History,
   Mail,
   MapPin,
+  PackageCheck,
   PauseCircle,
   Phone,
   PlayCircle,
@@ -31,7 +33,13 @@ import {
   isActiveSubscription,
   subscriptionStatusLabels,
 } from '../utils/subscriptions'
-import type { SubscriptionStatus } from '../types'
+import type { SubscriptionStatus, WholesaleQueueStatus } from '../types'
+import {
+  formatWholesaleQueueNumber,
+  getWholesaleQueuePosition,
+  isWholesaleQueueActive,
+  wholesaleQueueStatusLabels,
+} from '../utils/wholesalePreorders'
 
 export function AccountPage() {
   const { user } = useAuth()
@@ -41,10 +49,12 @@ export function AccountPage() {
     products,
     subscriptionPlans,
     customerSubscriptions,
+    wholesalePreorders,
     notifications,
     setCustomerSubscriptions,
     setNotifications,
     setOrders,
+    setWholesalePreorders,
   } = useStore()
   const productByName = new Map(products.map((product) => [product.name, product]))
   const userOrders = orders.filter((order) => orderBelongsToUser(order, user))
@@ -57,6 +67,10 @@ export function AccountPage() {
     (subscription) => subscription.customerId === user?.id,
   )
   const activeSubscriptions = userSubscriptions.filter(isActiveSubscription)
+  const userWholesalePreorders = wholesalePreorders
+    .filter((preorder) => preorder.customerId === user?.id)
+    .sort((a, b) => b.queueNumber - a.queueNumber)
+  const activeWholesalePreorders = userWholesalePreorders.filter(isWholesaleQueueActive)
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 1000)
@@ -116,6 +130,34 @@ export function AccountPage() {
           : subscription,
       ),
     )
+  }
+
+  function updateWholesalePreorderStatus(id: string, status: WholesaleQueueStatus) {
+    const preorder = wholesalePreorders.find((item) => item.id === id)
+    const now = new Date().toISOString()
+
+    setWholesalePreorders(
+      wholesalePreorders.map((item) =>
+        item.id === id ? { ...item, status, updatedAt: now } : item,
+      ),
+    )
+
+    if (preorder && status === 'cancelada') {
+      setNotifications([
+        {
+          id: crypto.randomUUID(),
+          audience: 'admin',
+          title: 'Encomenda atacado cancelada',
+          message: `${preorder.customerName} cancelou ${formatWholesaleQueueNumber(
+            preorder.queueNumber,
+          )}.`,
+          createdAt: now,
+          read: false,
+          link: '/admin',
+        },
+        ...notifications,
+      ])
+    }
   }
 
   return (
@@ -190,7 +232,78 @@ export function AccountPage() {
               <strong>{userOrders.length}</strong>
               <p>Histórico aparece quando houver pedidos cadastrados.</p>
             </article>
+            {user?.accountType === 'atacado' && (
+              <article className="metric-card green">
+                <Hash size={24} />
+                <span>Encomendas</span>
+                <strong>{activeWholesalePreorders.length}</strong>
+                <p>Fila atacado com posição e status atualizados.</p>
+              </article>
+            )}
           </div>
+
+          {user?.accountType === 'atacado' && (
+            <section className="table-panel">
+              <h2>Fila de encomendas atacado</h2>
+              {userWholesalePreorders.length === 0 ? (
+                <div className="empty-state compact">
+                  <h2>Nenhuma encomenda em fila ainda.</h2>
+                </div>
+              ) : (
+                <div className="customer-order-list wholesale-queue-list">
+                  {userWholesalePreorders.map((preorder) => {
+                    const position = getWholesaleQueuePosition(preorder, wholesalePreorders)
+
+                    return (
+                      <article className="customer-order-card wholesale-queue-card" key={preorder.id}>
+                        <div className="wholesale-queue-heading">
+                          {preorder.productImage && (
+                            <MediaPreview
+                              src={preorder.productImage}
+                              alt={preorder.productName}
+                            />
+                          )}
+                          <div>
+                            <strong>{preorder.productName}</strong>
+                            <span>
+                              {formatWholesaleQueueNumber(preorder.queueNumber)} ·{' '}
+                              {wholesaleQueueStatusLabels[preorder.status]}
+                            </span>
+                          </div>
+                          <small>
+                            {position > 0 ? `Posição ${position}` : 'Finalizada'}
+                          </small>
+                        </div>
+                        <div className="admin-customer-lines">
+                          <span>
+                            <PackageCheck size={15} />
+                            {preorder.requestedQuantity} un. · {preorder.productWeight} ·{' '}
+                            {formatCurrency(preorder.unitPrice)} atacado
+                          </span>
+                          <span>
+                            <CalendarClock size={15} />
+                            Criada em {formatDate(preorder.createdAt)}
+                          </span>
+                        </div>
+                        {isWholesaleQueueActive(preorder) && (
+                          <button
+                            className="secondary-button danger"
+                            type="button"
+                            onClick={() =>
+                              updateWholesalePreorderStatus(preorder.id, 'cancelada')
+                            }
+                          >
+                            <XCircle size={16} />
+                            Cancelar encomenda
+                          </button>
+                        )}
+                      </article>
+                    )
+                  })}
+                </div>
+              )}
+            </section>
+          )}
 
           <section className="table-panel">
             <h2>Minhas assinaturas</h2>

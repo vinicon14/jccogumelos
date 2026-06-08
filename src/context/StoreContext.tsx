@@ -25,6 +25,8 @@ import type {
   StoreSettings,
   StoreNotification,
   SubscriptionPlan,
+  WholesalePreorder,
+  WholesaleQueueStatus,
 } from '../types'
 import {
   loadRemotePayload,
@@ -43,6 +45,7 @@ interface StoredState {
   customerSubscriptions: CustomerSubscription[]
   coupons: Coupon[]
   orders: Order[]
+  wholesalePreorders: WholesalePreorder[]
   blogPosts: BlogPost[]
   notifications: StoreNotification[]
   settings: StoreSettings
@@ -54,6 +57,7 @@ const defaultState: StoredState = {
   customerSubscriptions: seedCustomerSubscriptions,
   coupons: seedCoupons,
   orders: seedOrders,
+  wholesalePreorders: [],
   blogPosts: seedBlogPosts,
   notifications: [],
   settings: seedStoreSettings,
@@ -71,6 +75,13 @@ const validOrderStatuses = new Set([
 const validSubscriptionStatuses = new Set(['ativa', 'pausada', 'cancelada'])
 validSubscriptionStatuses.add('aguardando_pagamento')
 const validSubscriptionCadences = new Set(['semanal', 'quinzenal', 'mensal'])
+const validWholesaleQueueStatuses = new Set([
+  'na_fila',
+  'em_producao',
+  'disponivel',
+  'atendida',
+  'cancelada',
+])
 
 function asText(value: unknown) {
   return String(value || '').trim()
@@ -172,6 +183,36 @@ function normalizeSubscription(subscription: Partial<CustomerSubscription>): Cus
   }
 }
 
+function normalizeWholesalePreorder(
+  preorder: Partial<WholesalePreorder>,
+): WholesalePreorder {
+  const createdAt = asText(preorder.createdAt) || new Date().toISOString()
+  const status = (validWholesaleQueueStatuses.has(asText(preorder.status))
+    ? preorder.status
+    : 'na_fila') as WholesaleQueueStatus
+
+  return {
+    id: asText(preorder.id) || crypto.randomUUID(),
+    queueNumber: Math.max(1, Number(preorder.queueNumber) || 1),
+    productId: asText(preorder.productId),
+    productName: asText(preorder.productName) || 'Produto sob encomenda',
+    productImage: asText(preorder.productImage),
+    productWeight: asText(preorder.productWeight),
+    requestedQuantity: Math.max(1, Number(preorder.requestedQuantity) || 1),
+    unitPrice: Number(preorder.unitPrice) || 0,
+    customerId: asText(preorder.customerId),
+    customerName: asText(preorder.customerName) || 'Cliente atacado',
+    customerEmail: asText(preorder.customerEmail),
+    customerPhone: asText(preorder.customerPhone),
+    deliveryCep: asText(preorder.deliveryCep),
+    deliveryAddress: asText(preorder.deliveryAddress) || 'Endereço não cadastrado',
+    status,
+    note: asText(preorder.note),
+    createdAt,
+    updatedAt: asText(preorder.updatedAt) || createdAt,
+  }
+}
+
 function normalizeBlogMedia(media: Partial<BlogMedia>, index = 0): BlogMedia | null {
   const url = asText(media.url)
 
@@ -242,6 +283,9 @@ function normalizeState(state: Partial<StoredState>): StoredState {
     orders: withOrderAutoCancellation(
       (state.orders ?? defaultState.orders).map(normalizeOrder),
     ),
+    wholesalePreorders: (
+      state.wholesalePreorders ?? defaultState.wholesalePreorders
+    ).map(normalizeWholesalePreorder),
     blogPosts: (state.blogPosts ?? defaultState.blogPosts).map(normalizeBlogPost),
     settings: {
       ...seedStoreSettings,
@@ -327,6 +371,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         updateState({ customerSubscriptions }),
       setCoupons: (coupons: Coupon[]) => updateState({ coupons }),
       setOrders: (orders: Order[]) => updateState({ orders }),
+      setWholesalePreorders: (wholesalePreorders: WholesalePreorder[]) =>
+        updateState({ wholesalePreorders }),
       setBlogPosts: (blogPosts: BlogPost[]) => updateState({ blogPosts }),
       setNotifications: (notifications: StoreNotification[]) =>
         updateState({ notifications }),

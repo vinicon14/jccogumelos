@@ -16,6 +16,12 @@ export type SubscriptionStatus =
   | 'ativa'
   | 'pausada'
   | 'cancelada'
+export type WholesaleQueueStatus =
+  | 'na_fila'
+  | 'em_producao'
+  | 'disponivel'
+  | 'atendida'
+  | 'cancelada'
 
 export type OrderStatus =
   | 'aguardando_pagamento'
@@ -130,6 +136,27 @@ export interface CustomerSubscription {
   createdAt: string
   nextDeliveryAt: string
   lastUpdatedAt: string
+}
+
+export interface WholesalePreorder {
+  id: string
+  queueNumber: number
+  productId: string
+  productName: string
+  productImage: string
+  productWeight: string
+  requestedQuantity: number
+  unitPrice: number
+  customerId: string
+  customerName: string
+  customerEmail: string
+  customerPhone: string
+  deliveryCep: string
+  deliveryAddress: string
+  status: WholesaleQueueStatus
+  note: string
+  createdAt: string
+  updatedAt: string
 }
 
 export interface Coupon {

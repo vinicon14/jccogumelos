@@ -4,6 +4,7 @@ import {
   CalendarClock,
   FilePlus2,
   DownloadCloud,
+  Hash,
   Image as ImageIcon,
   KeyRound,
   Mail,
@@ -39,6 +40,8 @@ import type {
   ProductCategory,
   SubscriptionStatus,
   SubscriptionPlan,
+  WholesalePreorder,
+  WholesaleQueueStatus,
 } from '../types'
 import {
   formatCep,
@@ -51,6 +54,12 @@ import { formatCurrency } from '../utils/format'
 import { inferMediaType, readMediaFile } from '../utils/media'
 import { isOrderVisibleInAdmin, withOrderStatus } from '../utils/orders'
 import { subscriptionStatusLabels } from '../utils/subscriptions'
+import {
+  formatWholesaleQueueNumber,
+  getWholesaleQueuePosition,
+  isWholesaleQueueActive,
+  wholesaleQueueStatusLabels,
+} from '../utils/wholesalePreorders'
 
 const statusLabels: Record<OrderStatus, string> = {
   aguardando_pagamento: 'Aguardando pagamento',
@@ -72,6 +81,9 @@ const categoryLabels: Record<ProductCategory, string> = {
 const productCategories = Object.keys(categoryLabels) as ProductCategory[]
 const orderStatuses = Object.keys(statusLabels) as OrderStatus[]
 const subscriptionStatuses = Object.keys(subscriptionStatusLabels) as SubscriptionStatus[]
+const wholesaleQueueStatuses = Object.keys(
+  wholesaleQueueStatusLabels,
+) as WholesaleQueueStatus[]
 
 function createProduct(): Product {
   return {
@@ -146,6 +158,7 @@ export function AdminPage() {
     customerSubscriptions,
     coupons,
     orders,
+    wholesalePreorders,
     blogPosts,
     notifications,
     settings,
@@ -154,6 +167,7 @@ export function AdminPage() {
     setCustomerSubscriptions,
     setCoupons,
     setOrders,
+    setWholesalePreorders,
     setBlogPosts,
     setNotifications,
     setSettings,
@@ -180,6 +194,9 @@ export function AdminPage() {
     (subscription) => subscription.status !== 'cancelada',
   )
   const managedSubscriptions = activeSubscriptions
+  const activeWholesalePreorders = wholesalePreorders
+    .filter(isWholesaleQueueActive)
+    .sort((a, b) => a.queueNumber - b.queueNumber)
   const productByName = useMemo(() => {
     return new Map(products.map((product) => [product.name, product]))
   }, [products])
@@ -297,6 +314,40 @@ export function AdminPage() {
           : subscription,
       ),
     )
+  }
+
+  function updateWholesalePreorder(id: string, patch: Partial<WholesalePreorder>) {
+    const currentPreorder = wholesalePreorders.find((preorder) => preorder.id === id)
+    const statusChanged =
+      patch.status && currentPreorder && patch.status !== currentPreorder.status
+    const now = new Date().toISOString()
+
+    setWholesalePreorders(
+      wholesalePreorders.map((preorder) =>
+        preorder.id === id ? { ...preorder, ...patch, updatedAt: now } : preorder,
+      ),
+    )
+
+    if (statusChanged && currentPreorder) {
+      setNotifications([
+        {
+          id: crypto.randomUUID(),
+          audience: 'customer',
+          title: 'Encomenda atacado atualizada',
+          message: `${formatWholesaleQueueNumber(
+            currentPreorder.queueNumber,
+          )} está como ${wholesaleQueueStatusLabels[patch.status!]}.`,
+          createdAt: now,
+          read: false,
+          link: '/conta',
+        },
+        ...notifications,
+      ])
+    }
+  }
+
+  function deleteWholesalePreorder(id: string) {
+    setWholesalePreorders(wholesalePreorders.filter((preorder) => preorder.id !== id))
   }
 
   function updatePost(id: string, patch: Partial<BlogPost>) {
@@ -592,6 +643,12 @@ export function AdminPage() {
           <strong>{activeSubscriptions.length}</strong>
           <p>Assinaturas ativas ou pausadas.</p>
         </article>
+        <article className="metric-card green">
+          <Hash size={24} />
+          <span>Fila atacado</span>
+          <strong>{activeWholesalePreorders.length}</strong>
+          <p>Encomendas aguardando produção ou separação.</p>
+        </article>
       </div>
 
       <section className="table-panel admin-edit-section">
@@ -646,6 +703,133 @@ export function AdminPage() {
                 </div>
               </article>
             ))}
+          </div>
+        )}
+      </section>
+
+      <section className="table-panel admin-edit-section">
+        <div className="admin-section-title">
+          <Hash size={22} />
+          <div>
+            <h2>Fila de encomendas atacado</h2>
+            <p>Controle a posição, status, quantidade e observação de cada encomenda.</p>
+          </div>
+          <span className="admin-count-pill">{activeWholesalePreorders.length}</span>
+        </div>
+        {activeWholesalePreorders.length === 0 ? (
+          <div className="empty-state compact">
+            <h2>Nenhuma encomenda atacado em fila.</h2>
+          </div>
+        ) : (
+          <div className="admin-subscription-grid wholesale-admin-grid">
+            {activeWholesalePreorders.map((preorder) => {
+              const position = getWholesaleQueuePosition(preorder, wholesalePreorders)
+
+              return (
+                <article className="admin-subscription-card wholesale-admin-card" key={preorder.id}>
+                  <button
+                    className="icon-small admin-delete-button"
+                    type="button"
+                    onClick={() => deleteWholesalePreorder(preorder.id)}
+                    aria-label="Excluir encomenda"
+                    title="Excluir encomenda"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                  <div className="admin-customer-topline">
+                    <div>
+                      <strong>
+                        {formatWholesaleQueueNumber(preorder.queueNumber)} ·{' '}
+                        {preorder.productName}
+                      </strong>
+                      <span>
+                        Posição {position} · {preorder.customerName}
+                      </span>
+                    </div>
+                    <small>{wholesaleQueueStatusLabels[preorder.status]}</small>
+                  </div>
+                  <div className="admin-order-products">
+                    <span className="order-product-chip">
+                      {preorder.productImage && (
+                        <MediaPreview src={preorder.productImage} alt={preorder.productName} />
+                      )}
+                      {preorder.requestedQuantity} un. · {preorder.productWeight}
+                    </span>
+                  </div>
+                  <div className="admin-customer-lines">
+                    <span>
+                      <Mail size={15} />
+                      {preorder.customerEmail || 'E-mail não informado'}
+                    </span>
+                    <span>
+                      <Phone size={15} />
+                      {preorder.customerPhone || 'Telefone não cadastrado'}
+                    </span>
+                    <span>
+                      <MapPin size={15} />
+                      {preorder.deliveryAddress}
+                    </span>
+                  </div>
+                  <div className="admin-field-row compact">
+                    <label className="field-label">
+                      Status
+                      <select
+                        value={preorder.status}
+                        onChange={(event) =>
+                          updateWholesalePreorder(preorder.id, {
+                            status: event.target.value as WholesaleQueueStatus,
+                          })
+                        }
+                      >
+                        {wholesaleQueueStatuses.map((status) => (
+                          <option key={status} value={status}>
+                            {wholesaleQueueStatusLabels[status]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="field-label">
+                      Quantidade
+                      <input
+                        min={1}
+                        type="number"
+                        value={preorder.requestedQuantity}
+                        onChange={(event) =>
+                          updateWholesalePreorder(preorder.id, {
+                            requestedQuantity: Math.max(
+                              1,
+                              Number(event.target.value) || 1,
+                            ),
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="field-label">
+                      Valor atacado
+                      <input
+                        min={0}
+                        type="number"
+                        value={preorder.unitPrice}
+                        onChange={(event) =>
+                          updateWholesalePreorder(preorder.id, {
+                            unitPrice: Math.max(0, Number(event.target.value) || 0),
+                          })
+                        }
+                      />
+                    </label>
+                  </div>
+                  <label className="field-label">
+                    Observação interna
+                    <textarea
+                      value={preorder.note}
+                      onChange={(event) =>
+                        updateWholesalePreorder(preorder.id, { note: event.target.value })
+                      }
+                    />
+                  </label>
+                </article>
+              )
+            })}
           </div>
         )}
       </section>
