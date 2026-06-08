@@ -1,8 +1,9 @@
-import { Bot, Mic, Send, X } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { Bot, Mic, Send, Trash2, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../context/useStore'
+import { loadChatHistory, saveChatMessage, clearChatHistory } from '../services/chatHistory'
 
-interface ChatMessage {
+export interface ChatMessage {
   role: 'assistant' | 'user'
   text: string
 }
@@ -99,6 +100,34 @@ export function AssistantWidget() {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
   const [thinking, setThinking] = useState(false)
   const [listening, setListening] = useState(false)
+  const [historyLoaded, setHistoryLoaded] = useState(false)
+
+  useEffect(() => {
+    if (!open || historyLoaded) return
+    setHistoryLoaded(true)
+
+    loadChatHistory().then((history) => {
+      if (history && history.length > 0) {
+        setMessages((current) => {
+          if (current.length === 1 && current[0].role === 'assistant' && !history.some((m) => m.text === current[0].text)) {
+            return [...current, ...history]
+          }
+          return history
+        })
+      }
+    })
+  }, [open, historyLoaded])
+
+  useEffect(() => {
+    if (!open) {
+      setHistoryLoaded(false)
+    }
+  }, [open])
+
+  async function addMessage(message: ChatMessage) {
+    setMessages((current) => [...current, message])
+    await saveChatMessage(message)
+  }
   const speechRecognition = useMemo(() => getSpeechRecognitionConstructor(), [])
   const storeContext = useMemo(
     () => ({
@@ -138,41 +167,36 @@ export function AssistantWidget() {
     const userMessage: ChatMessage = { role: 'user', text }
     const nextHistory = [...messages, userMessage]
 
-    setMessages((current) => [...current, userMessage])
+    await addMessage(userMessage)
     setInput('')
     setThinking(true)
 
     try {
       const reply = await requestJosaninhaReply(text, nextHistory, storeContext)
-      setMessages((current) => [...current, { role: 'assistant', text: reply }])
+      await addMessage({ role: 'assistant', text: reply })
     } catch (error) {
       const josaninhaError = error as JosaninhaError
       const errorCode = josaninhaError?.code
-      setMessages((current) => [
-        ...current,
-        {
-          role: 'assistant',
-          text: (() => {
-            if (errorCode === 'missing_ai_key') {
-              return 'A Josaninha ainda não tem uma chave de API ativa no servidor. Salve a chave pelo painel administrativo.'
-            }
+      const errorMessage = (() => {
+        if (errorCode === 'missing_ai_key') {
+          return 'A Josaninha ainda não tem uma chave de API ativa no servidor. Salve a chave pelo painel administrativo.'
+        }
 
-            if (errorCode === 'ai_auth_failed') {
-              return 'A chave da IA foi recusada pelo provedor. Confira se a chave, endpoint e modelo estão corretos no painel.'
-            }
+        if (errorCode === 'ai_auth_failed') {
+          return 'A chave da IA foi recusada pelo provedor. Confira se a chave, endpoint e modelo estão corretos no painel.'
+        }
 
-            if (errorCode === 'ai_quota_exceeded') {
-              return 'A API está configurada, mas o provedor informou falta de cota, créditos ou limite de cobrança. Ajuste a conta da API e tente novamente.'
-            }
+        if (errorCode === 'ai_quota_exceeded') {
+          return 'A API está configurada, mas o provedor informou falta de cota, créditos ou limite de cobrança. Ajuste a conta da API e tente novamente.'
+        }
 
-            if (errorCode === 'ai_rate_limited') {
-              return 'O provedor da IA limitou muitas chamadas em pouco tempo. Tente novamente em instantes.'
-            }
+        if (errorCode === 'ai_rate_limited') {
+          return 'O provedor da IA limitou muitas chamadas em pouco tempo. Tente novamente em instantes.'
+        }
 
-            return 'Não consegui falar com a API da IA agora. Confira endpoint, modelo e chave no painel administrativo.'
-          })(),
-        },
-      ])
+        return 'Não consegui falar com a API da IA agora. Confira endpoint, modelo e chave no painel administrativo.'
+      })()
+      await addMessage({ role: 'assistant', text: errorMessage })
     } finally {
       setThinking(false)
     }
@@ -226,14 +250,28 @@ export function AssistantWidget() {
               <Bot size={20} />
               <strong>Josaninha</strong>
             </div>
-            <button
-              className="grid h-8 w-8 place-items-center rounded-[8px] hover:bg-white/15"
-              type="button"
-              onClick={() => setOpen(false)}
-              aria-label="Fechar assistente"
-            >
-              <X size={18} />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                className="grid h-8 w-8 place-items-center rounded-[8px] text-white/70 hover:bg-white/15 hover:text-white"
+                type="button"
+                onClick={async () => {
+                  await clearChatHistory()
+                  setMessages(initialMessages)
+                }}
+                aria-label="Limpar histórico"
+                title="Limpar histórico"
+              >
+                <Trash2 size={15} />
+              </button>
+              <button
+                className="grid h-8 w-8 place-items-center rounded-[8px] hover:bg-white/15"
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Fechar assistente"
+              >
+                <X size={18} />
+              </button>
+            </div>
           </header>
           <div className="max-h-[360px] overflow-y-auto bg-[#fff7ec] p-4">
             <div className="grid gap-3">
