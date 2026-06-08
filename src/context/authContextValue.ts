@@ -23,7 +23,7 @@ export interface RegisterInput {
 export interface AuthContextValue {
   user: SessionUser | null
   login: (input: LoginInput) => Promise<{ ok: boolean; message?: string; user?: SessionUser }>
-  register: (input: RegisterInput) => { ok: boolean; message?: string }
+  register: (input: RegisterInput) => Promise<{ ok: boolean; message?: string }>
   logout: () => void
   isAdmin: boolean
   isAdminChecking: boolean

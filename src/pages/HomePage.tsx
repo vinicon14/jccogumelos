@@ -10,6 +10,7 @@ import {
   Camera,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { useEffect } from 'react'
 import { BlogMediaGallery } from '../components/BlogMediaGallery'
 import { ProductCard } from '../components/ProductCard'
 import { BrandMark } from '../components/BrandMark'
@@ -68,6 +69,19 @@ export function HomePage({ focus }: HomePageProps) {
   const featured = products.filter((product) => product.bestSeller || product.isNew).slice(0, 3)
   const publishedPosts = blogPosts.filter((post) => post.published)
   const whatsAppUrl = buildWhatsAppUrl(settings.whatsapp) || contact.whatsAppUrl
+
+  useEffect(() => {
+    if (focus !== 'assinaturas') {
+      return
+    }
+
+    window.requestAnimationFrame(() => {
+      document.getElementById('assinaturas')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      })
+    })
+  }, [focus])
 
   function handleSubscribe(planId: string) {
     if (!user) {

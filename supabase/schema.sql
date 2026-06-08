@@ -182,6 +182,12 @@ create table public.notifications (
   created_at timestamptz not null default now()
 );
 
+create table public.app_state (
+  id text primary key,
+  payload jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
 alter table public.profiles enable row level security;
 alter table public.products enable row level security;
 alter table public.orders enable row level security;
@@ -193,6 +199,7 @@ alter table public.app_settings enable row level security;
 alter table public.assistant_settings enable row level security;
 alter table public.blog_posts enable row level security;
 alter table public.notifications enable row level security;
+alter table public.app_state enable row level security;
 
 create policy "Public can read active products"
   on public.products for select
@@ -240,3 +247,16 @@ create policy "Users can read own notifications"
       and notifications.audience = 'admin'
     )
   );
+
+create policy "MVP app state read"
+  on public.app_state for select
+  using (true);
+
+create policy "MVP app state insert"
+  on public.app_state for insert
+  with check (id in ('store', 'customers'));
+
+create policy "MVP app state update"
+  on public.app_state for update
+  using (id in ('store', 'customers'))
+  with check (id in ('store', 'customers'));

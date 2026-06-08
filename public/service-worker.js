@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jc-cogumelos-v1'
+const CACHE_NAME = 'jc-cogumelos-v2'
 const APP_SHELL = ['/', '/manifest.webmanifest', '/favicon.svg', '/pwa-icon.svg']
 
 self.addEventListener('install', (event) => {
@@ -27,7 +27,15 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (request.mode === 'navigate') {
-    event.respondWith(fetch(request).catch(() => caches.match('/')))
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          const copy = response.clone()
+          caches.open(CACHE_NAME).then((cache) => cache.put('/', copy))
+          return response
+        })
+        .catch(() => caches.match('/')),
+    )
     return
   }
 

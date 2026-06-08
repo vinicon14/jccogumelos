@@ -17,7 +17,7 @@ import {
   UserRound,
   X,
 } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useState, type ReactNode } from 'react'
 import { AssistantWidget } from './components/AssistantWidget'
 import { BrandMark } from './components/BrandMark'
 import { contact } from './config/contact'
@@ -108,6 +108,12 @@ function App() {
   }, [])
 
   useEffect(() => {
+    if (location.pathname !== '/assinaturas') {
+      window.scrollTo({ top: 0, left: 0, behavior: 'smooth' })
+    }
+  }, [location.pathname])
+
+  useLayoutEffect(() => {
     const selectors = [
       'main section',
       '.product-card',
@@ -125,12 +131,17 @@ function App() {
     const nodes = Array.from(document.querySelectorAll<HTMLElement>(selectors))
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
+    if (!nodes.length) {
+      return
+    }
+
     nodes.forEach((node, index) => {
+      node.classList.remove('is-visible')
       node.classList.add('motion-reveal')
       node.style.setProperty('--motion-delay', `${Math.min(index % 7, 5) * 55}ms`)
     })
 
-    if (reducedMotion) {
+    if (reducedMotion || !('IntersectionObserver' in window)) {
       nodes.forEach((node) => node.classList.add('is-visible'))
       return
     }
@@ -148,6 +159,14 @@ function App() {
     )
 
     nodes.forEach((node) => observer.observe(node))
+    window.requestAnimationFrame(() => {
+      nodes.forEach((node) => {
+        const rect = node.getBoundingClientRect()
+        if (rect.top < window.innerHeight * 0.96 && rect.bottom > 0) {
+          node.classList.add('is-visible')
+        }
+      })
+    })
 
     return () => observer.disconnect()
   }, [location.pathname])
@@ -327,7 +346,7 @@ function App() {
       </header>
       )}
 
-      <main className="page-transition">
+      <main className="page-transition" key={location.pathname}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />

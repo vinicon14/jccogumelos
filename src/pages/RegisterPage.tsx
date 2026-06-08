@@ -61,9 +61,9 @@ export function RegisterPage() {
     }
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const result = register({
+    const result = await register({
       name,
       email,
       phone,

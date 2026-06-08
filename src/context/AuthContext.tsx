@@ -3,9 +3,9 @@ import { flushSync } from 'react-dom'
 import type { SessionUser } from '../types'
 import {
   normalizeCustomer,
-  readStoredCustomers,
+  readSyncedCustomers,
   toSessionUser,
-  writeStoredCustomers,
+  writeSyncedCustomers,
 } from '../utils/customers'
 import { AuthContext, type LoginInput, type RegisterInput } from './authContextValue'
 
@@ -184,7 +184,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { ok: false, message: adminAttempt.message }
     }
 
-    const customer = readStoredCustomers().find(
+    const customer = (await readSyncedCustomers()).find(
       (candidate) =>
         candidate.email.toLowerCase() === email && candidate.password === password,
     )
@@ -200,7 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { ok: true, user: nextUser }
   }, [])
 
-  const register = useCallback((input: RegisterInput) => {
+  const register = useCallback(async (input: RegisterInput) => {
     if (!input.name.trim() || !input.email.trim() || !input.password.trim()) {
       return { ok: false, message: 'Preencha nome, e-mail e senha.' }
     }
@@ -210,7 +210,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const email = input.email.trim().toLowerCase()
-    const customers = readStoredCustomers()
+    const customers = await readSyncedCustomers()
 
     if (customers.some((customer) => customer.email.toLowerCase() === email)) {
       return { ok: false, message: 'Este e-mail já possui cadastro.' }
@@ -230,7 +230,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password: input.password,
     })
 
-    writeStoredCustomers([...customers, customer])
+    await writeSyncedCustomers([...customers, customer])
 
     const nextUser = toSessionUser(customer)
 

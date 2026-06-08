@@ -45,6 +45,7 @@ import {
   formatCustomerAddress,
   normalizeAccountType,
   readStoredCustomers,
+  readSyncedCustomers,
 } from '../utils/customers'
 import { formatCurrency } from '../utils/format'
 import { inferMediaType, readMediaFile } from '../utils/media'
@@ -211,8 +212,10 @@ export function AdminPage() {
   useEffect(() => {
     function syncCustomers() {
       setRegisteredCustomers(readStoredCustomers())
+      void readSyncedCustomers().then(setRegisteredCustomers)
     }
 
+    syncCustomers()
     window.addEventListener('storage', syncCustomers)
     window.addEventListener('focus', syncCustomers)
 

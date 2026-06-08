@@ -20,7 +20,8 @@ npm run dev
 ```
 
 Copie `.env.example` para `.env.local` se quiser conectar o cliente Supabase.
-Sem variáveis configuradas, a loja usa dados locais e localStorage.
+Sem variáveis configuradas ou sem a tabela `app_state`, a loja usa dados locais
+e localStorage como fallback.
 
 ## Supabase
 
@@ -31,6 +32,14 @@ O projeto está preparado para:
 - `VITE_SUPABASE_ANON_KEY` como compatibilidade
 
 O schema inicial está em `supabase/schema.sql`.
+
+Para o MVP sincronizar cadastros, produtos, posts, pedidos, assinaturas,
+cupons, notificações e configurações entre PC e celular, aplique também
+`supabase/mvp-sync.sql` no SQL Editor do Supabase. Essa tabela cria dois
+registros de estado remoto:
+
+- `store`: dados editáveis da loja.
+- `customers`: cadastros de clientes usados pelo login MVP.
 
 ## Contatos
 
@@ -65,9 +74,11 @@ configurado.
 ## Clientes e endereços
 
 O cadastro coleta telefone, CEP, rua, bairro, cidade e UF. O formulário tenta
-preencher o endereço pelo CEP e mantém edição manual como fallback. No MVP, os
-clientes ficam em localStorage e o painel administrativo lista esses cadastros
-com busca por nome, e-mail, telefone ou CEP.
+preencher o endereço pelo CEP e mantém edição manual como fallback. Com
+`supabase/mvp-sync.sql` aplicado, os clientes sincronizam pelo Supabase e podem
+entrar no PC ou celular. Sem a tabela remota, o app mantém fallback local. O
+painel administrativo lista esses cadastros com busca por nome, e-mail,
+telefone ou CEP.
 
 ## Pedidos e assinaturas
 

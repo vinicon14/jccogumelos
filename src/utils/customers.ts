@@ -1,6 +1,8 @@
 import type { AccountType, RegisteredCustomer, SessionUser } from '../types'
+import { loadRemotePayload, saveRemotePayload } from '../services/remotePersistence'
 
 export const USERS_STORAGE_KEY = 'jc-cogumelos-users-v1'
+const CUSTOMERS_REMOTE_ID = 'customers'
 
 export interface StoredCustomer extends RegisteredCustomer {
   password: string
@@ -54,6 +56,35 @@ export function writeStoredCustomers(customers: StoredCustomer[]) {
   if (typeof window !== 'undefined') {
     window.localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(customers))
   }
+}
+
+function normalizeCustomers(customers: Array<Partial<StoredCustomer>> = []) {
+  return customers.map(normalizeCustomer).filter((customer) => customer.email)
+}
+
+export async function readSyncedCustomers(): Promise<StoredCustomer[]> {
+  const localCustomers = readStoredCustomers()
+  const remotePayload = await loadRemotePayload<{ customers?: Partial<StoredCustomer>[] }>(
+    CUSTOMERS_REMOTE_ID,
+  )
+  const remoteCustomers = normalizeCustomers(remotePayload?.customers)
+
+  if (remoteCustomers.length > 0) {
+    writeStoredCustomers(remoteCustomers)
+    return remoteCustomers
+  }
+
+  if (localCustomers.length > 0) {
+    void saveRemotePayload(CUSTOMERS_REMOTE_ID, { customers: localCustomers })
+  }
+
+  return localCustomers
+}
+
+export async function writeSyncedCustomers(customers: StoredCustomer[]) {
+  const normalizedCustomers = normalizeCustomers(customers)
+  writeStoredCustomers(normalizedCustomers)
+  await saveRemotePayload(CUSTOMERS_REMOTE_ID, { customers: normalizedCustomers })
 }
 
 export function toSessionUser(customer: StoredCustomer): SessionUser {

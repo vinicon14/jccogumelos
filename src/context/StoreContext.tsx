@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import {
   blogPosts as seedBlogPosts,
   customerSubscriptions as seedCustomerSubscriptions,
@@ -19,10 +26,16 @@ import type {
   StoreNotification,
   SubscriptionPlan,
 } from '../types'
+import {
+  loadRemotePayload,
+  saveRemotePayload,
+  subscribeRemotePayload,
+} from '../services/remotePersistence'
 import { withOrderAutoCancellation } from '../utils/orders'
 import { StoreContext } from './storeContextValue'
 
 const STORE_STORAGE_KEY = 'jc-cogumelos-store-v1'
+const STORE_REMOTE_ID = 'store'
 
 interface StoredState {
   products: Product[]
@@ -274,14 +287,35 @@ function persistState(state: StoredState) {
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<StoredState>(readStoredState)
+  const stateRef = useRef(state)
+  const remoteSaveTimer = useRef<number | undefined>(undefined)
+
+  useEffect(() => {
+    stateRef.current = state
+  }, [state])
+
+  const queueRemoteSave = useCallback((nextState: StoredState) => {
+    window.clearTimeout(remoteSaveTimer.current)
+    remoteSaveTimer.current = window.setTimeout(() => {
+      void saveRemotePayload(STORE_REMOTE_ID, nextState)
+    }, 500)
+  }, [])
+
+  const persistEverywhere = useCallback(
+    (nextState: StoredState) => {
+      persistState(nextState)
+      queueRemoteSave(nextState)
+    },
+    [queueRemoteSave],
+  )
 
   const updateState = useCallback((patch: Partial<StoredState>) => {
     setState((current) => {
       const nextState = syncSubscriptionPaymentState({ ...current, ...patch })
-      persistState(nextState)
+      persistEverywhere(nextState)
       return nextState
     })
-  }, [])
+  }, [persistEverywhere])
 
   const value = useMemo(
     () => ({
@@ -315,12 +349,59 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
 
         const nextState = syncSubscriptionPaymentState({ ...current, orders })
-        persistState(nextState)
+        persistEverywhere(nextState)
         return nextState
       })
     }, 10000)
 
     return () => window.clearInterval(interval)
+  }, [persistEverywhere])
+
+  useEffect(() => {
+    let active = true
+
+    async function refreshFromRemote(seedIfEmpty = false) {
+      const remoteState = await loadRemotePayload<Partial<StoredState>>(STORE_REMOTE_ID)
+
+      if (!active) {
+        return
+      }
+
+      if (remoteState) {
+        const nextState = normalizeState(remoteState)
+        persistState(nextState)
+        setState(nextState)
+        return
+      }
+
+      if (seedIfEmpty) {
+        void saveRemotePayload(STORE_REMOTE_ID, stateRef.current)
+      }
+    }
+
+    void refreshFromRemote(true)
+
+    const unsubscribe = subscribeRemotePayload<Partial<StoredState>>(
+      STORE_REMOTE_ID,
+      (remoteState) => {
+        const nextState = normalizeState(remoteState)
+        persistState(nextState)
+        setState(nextState)
+      },
+    )
+
+    function handleFocus() {
+      void refreshFromRemote()
+    }
+
+    window.addEventListener('focus', handleFocus)
+
+    return () => {
+      active = false
+      window.clearTimeout(remoteSaveTimer.current)
+      window.removeEventListener('focus', handleFocus)
+      unsubscribe()
+    }
   }, [])
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
