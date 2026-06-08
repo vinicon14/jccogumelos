@@ -25,6 +25,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { loadBlogPostsFromDb, saveBlogPostToDb, deleteBlogPostFromDb } from '../services/blogPostSync'
 import { MediaPreview } from '../components/MediaPreview'
 import { useAuth } from '../context/useAuth'
 import { useStore } from '../context/useStore'
@@ -279,6 +280,13 @@ export function AdminPage() {
   }, [])
 
   useEffect(() => {
+    loadBlogPostsFromDb().then((dbPosts) => {
+      if (!dbPosts || dbPosts.length === 0) return
+      setBlogPosts(dbPosts)
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
     const frame = adminPageFrameRef.current
 
     if (!frame) {
@@ -423,9 +431,16 @@ export function AdminPage() {
         }
       : patch
 
-    setBlogPosts(
-      blogPosts.map((post) => (post.id === id ? { ...post, ...normalizedPatch } : post)),
+    const updated = blogPosts.map((post) =>
+      post.id === id ? { ...post, ...normalizedPatch } : post,
     )
+
+    setBlogPosts(updated)
+
+    const saved = updated.find((p) => p.id === id)
+    if (saved) {
+      void saveBlogPostToDb(saved)
+    }
 
     if (patch.published && currentPost && !currentPost.published) {
       setNotifications([
@@ -445,6 +460,7 @@ export function AdminPage() {
 
   function deletePost(id: string) {
     setBlogPosts(blogPosts.filter((post) => post.id !== id))
+    void deleteBlogPostFromDb(id)
   }
 
   function updatePostMedia(postId: string, mediaId: string, patch: Partial<BlogMedia>) {
@@ -588,7 +604,11 @@ export function AdminPage() {
         (post) => !importedKeys.has(post.sourceId || post.sourceUrl || post.id),
       )
 
-      setBlogPosts([...newPosts, ...blogPosts])
+      const allPosts = [...newPosts, ...blogPosts]
+      setBlogPosts(allPosts)
+      for (const post of newPosts) {
+        void saveBlogPostToDb(post)
+      }
       setInstagramImportMessage(
         newPosts.length
           ? `${newPosts.length} post(s) importado(s) do Instagram.`
