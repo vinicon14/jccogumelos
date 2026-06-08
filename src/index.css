@@ -1006,6 +1006,7 @@ img {
 .dashboard-cards {
   display: grid;
   gap: 1rem;
+  scroll-margin-top: 7rem;
 }
 
 @media (min-width: 760px) {
@@ -2252,6 +2253,77 @@ button:disabled,
 
 .admin-edit-section {
   margin-top: 1rem;
+  scroll-margin-top: 7rem;
+}
+
+.admin-page-nav {
+  position: sticky;
+  top: 0.7rem;
+  z-index: 20;
+  display: flex;
+  gap: 0.45rem;
+  overflow-x: auto;
+  border: 1px solid rgba(54, 48, 40, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 250, 243, 0.92);
+  padding: 0.45rem;
+  box-shadow: 0 14px 34px rgba(32, 27, 23, 0.075);
+  backdrop-filter: blur(14px);
+  scrollbar-width: none;
+}
+
+.admin-page-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.admin-page-nav a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.36rem;
+  flex: 0 0 auto;
+  min-height: 2.25rem;
+  border: 1px solid rgba(201, 83, 36, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.64);
+  color: #3b2a20;
+  padding: 0.5rem 0.68rem;
+  font-size: 0.78rem;
+  font-weight: 1000;
+  text-decoration: none;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.admin-page-nav a:hover {
+  transform: translateY(-1px);
+  border-color: rgba(35, 61, 47, 0.28);
+  background: #233d2f;
+  color: #fffaf2;
+}
+
+.admin-page-nav svg {
+  flex: 0 0 auto;
+}
+
+.admin-page-nav small {
+  display: inline-grid;
+  min-width: 1.32rem;
+  height: 1.32rem;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(201, 83, 36, 0.13);
+  color: #a84622;
+  font-size: 0.68rem;
+  line-height: 1;
+}
+
+.admin-page-nav a:hover small {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fffaf2;
 }
 
 .admin-edit-section.table-panel,

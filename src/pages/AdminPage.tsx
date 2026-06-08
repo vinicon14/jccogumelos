@@ -690,6 +690,66 @@ export function AdminPage() {
         second: '2-digit',
       }).format(new Date(lastPersistedAt))
     : ''
+  const adminNavItems = [
+    {
+      id: 'admin-overview',
+      label: 'Visão geral',
+      icon: ShoppingCart,
+    },
+    {
+      id: 'admin-customers',
+      label: 'Clientes',
+      count: registeredCustomers.length,
+      icon: UsersRound,
+    },
+    {
+      id: 'admin-wholesale',
+      label: 'Fila atacado',
+      count: activeWholesalePreorders.length,
+      icon: Hash,
+    },
+    {
+      id: 'admin-products',
+      label: 'Produtos',
+      count: products.length,
+      icon: Boxes,
+    },
+    {
+      id: 'admin-plans',
+      label: 'Planos',
+      count: subscriptionPlans.length,
+      icon: Percent,
+    },
+    {
+      id: 'admin-subscriptions',
+      label: 'Assinaturas',
+      count: managedSubscriptions.length,
+      icon: BadgeCheck,
+    },
+    {
+      id: 'admin-blog',
+      label: 'Blog',
+      count: blogPosts.length,
+      icon: FilePlus2,
+    },
+    {
+      id: 'admin-orders',
+      label: 'Pedidos',
+      count: activeOrders.length,
+      icon: ShoppingCart,
+    },
+    {
+      id: 'admin-settings',
+      label: 'Configurações',
+      icon: Settings,
+    },
+    {
+      id: 'admin-coupons',
+      label: 'Cupons',
+      count: coupons.length,
+      icon: Percent,
+    },
+  ]
 
   return (
     <section className="page-shell">
@@ -721,7 +781,23 @@ export function AdminPage() {
         </button>
       </div>
 
-      <div className="dashboard-cards">
+      <nav className="admin-page-nav" aria-label="Navegação do painel administrativo">
+        {adminNavItems.map((item) => {
+          const Icon = item.icon
+
+          return (
+            <a href={`#${item.id}`} key={item.id}>
+              <Icon size={16} />
+              <span>{item.label}</span>
+              {typeof item.count === 'number' && (
+                <small>{item.count}</small>
+              )}
+            </a>
+          )
+        })}
+      </nav>
+
+      <div className="dashboard-cards" id="admin-overview">
         <article className="metric-card warm">
           <ShoppingCart size={24} />
           <span>Vendas do mês</span>
@@ -760,7 +836,7 @@ export function AdminPage() {
         </article>
       </div>
 
-      <section className="table-panel admin-edit-section">
+      <section className="table-panel admin-edit-section" id="admin-customers">
         <div className="admin-section-title">
           <UsersRound size={22} />
           <div>
@@ -816,7 +892,7 @@ export function AdminPage() {
         )}
       </section>
 
-      <section className="table-panel admin-edit-section">
+      <section className="table-panel admin-edit-section" id="admin-wholesale">
         <div className="admin-section-title">
           <Hash size={22} />
           <div>
@@ -943,7 +1019,7 @@ export function AdminPage() {
         )}
       </section>
 
-      <section className="table-panel admin-edit-section">
+      <section className="table-panel admin-edit-section" id="admin-products">
         <div className="admin-section-title">
           <Boxes size={22} />
           <div>
@@ -1157,7 +1233,7 @@ export function AdminPage() {
         </div>
       </section>
 
-      <section className="table-panel admin-edit-section">
+      <section className="table-panel admin-edit-section" id="admin-plans">
         <div className="admin-section-title">
           <Percent size={22} />
           <div>
@@ -1221,7 +1297,7 @@ export function AdminPage() {
         </div>
       </section>
 
-      <section className="table-panel admin-edit-section">
+      <section className="table-panel admin-edit-section" id="admin-subscriptions">
         <div className="admin-section-title">
           <BadgeCheck size={22} />
           <div>
@@ -1376,7 +1452,7 @@ export function AdminPage() {
         )}
       </section>
 
-      <section className="table-panel admin-edit-section">
+      <section className="table-panel admin-edit-section" id="admin-blog">
         <div className="admin-section-title">
           <FilePlus2 size={22} />
           <div>
@@ -1606,7 +1682,7 @@ export function AdminPage() {
       </section>
 
       <div className="admin-layout">
-        <section className="table-panel admin-edit-section">
+        <section className="table-panel admin-edit-section" id="admin-orders">
           <div className="admin-section-title">
             <ShoppingCart size={22} />
             <div>
@@ -1689,7 +1765,7 @@ export function AdminPage() {
           )}
         </section>
 
-        <aside className="settings-panel admin-edit-section">
+        <aside className="settings-panel admin-edit-section" id="admin-settings">
           <div className="admin-section-title">
             <Settings size={22} />
             <div>
@@ -2129,7 +2205,7 @@ export function AdminPage() {
         </aside>
       </div>
 
-      <section className="table-panel admin-edit-section">
+      <section className="table-panel admin-edit-section" id="admin-coupons">
         <div className="admin-section-title">
           <MessageCircle size={22} />
           <div>
