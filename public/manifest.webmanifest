@@ -1,7 +1,7 @@
 {
   "name": "JC Cogumelos",
   "short_name": "JC Cogumelos",
-  "description": "Loja online de cogumelos gourmet com assistente Josaninha.",
+  "description": "Loja online de cogumelos gourmet frescos. Compra de shitake, shimeji e muito mais com assinaturas recorrentes e entrega.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

@@ -1,0 +1,21 @@
+# JC Cogumelos - Loja de Cogumelos Gourmet
+# https://jccogumelos.com.br
+
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 1
+
+User-agent: Bingbot
+Allow: /
+Crawl-delay: 1
+
+User-agent: Twitterbot
+Allow: /
+
+User-agent: facebookexternalhit
+Allow: /
+
+User-agent: *
+Allow: /
+
+Sitemap: https://jccogumelos.com.br/sitemap.xml

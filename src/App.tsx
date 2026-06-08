@@ -104,8 +104,21 @@ function App() {
   const whatsAppUrl = buildWhatsAppUrl(settings.whatsapp) || contact.whatsAppUrl
 
   useEffect(() => {
-    document.title = 'JC Cogumelos'
-  }, [])
+    const titles: Record<string, string> = {
+      '/': 'JC Cogumelos — Cogumelos Gourmet Frescos',
+      '/login': 'Entrar — JC Cogumelos',
+      '/cadastro': 'Criar Conta — JC Cogumelos',
+      '/loja': 'Início — JC Cogumelos',
+      '/catalogo': 'Catálogo de Cogumelos — JC Cogumelos',
+      '/assinaturas': 'Assinaturas de Cogumelos — JC Cogumelos',
+      '/blog-josaninha': 'Blog Josaninha — JC Cogumelos',
+      '/carrinho': 'Carrinho — JC Cogumelos',
+      '/checkout': 'Finalizar Pedido — JC Cogumelos',
+      '/conta': 'Minha Conta — JC Cogumelos',
+      '/admin': 'Painel Admin — JC Cogumelos',
+    }
+    document.title = titles[location.pathname] || 'JC Cogumelos — Cogumelos Gourmet Frescos'
+  }, [location.pathname])
 
   useEffect(() => {
     if (location.pathname !== '/assinaturas') {
